@@ -1,0 +1,47 @@
+NAME
+	anything-daemon - Symlinks and syncs user specified dirs to RAM thus reducing HDD/SDD calls and speeding-up the system.
+
+SYNOPSIS
+	rc.d [options] asd
+
+DESCRIPTION
+	Anything-sync-daemon (asd) is a tiny shell script designed to manage user specified directories in tmpfs and to periodically sync them back to your physical disc (HDD/SSD). This is accomplished via a symlinking step and an innovative use of rsync to maintain back-up and synchronization between the two. One of the major design goals of asd is completely transparent user experience.
+
+	Running this daemon is beneficial for two reasons:
+	1. Reduced wear to physical discs
+	2. Speed
+
+	Since the target directories are relocated into tmpfs, the corresponding onslaught of I/O associated with system usage of them is also redirected from the physical disc to RAM, thus reducing wear to the physical disc and also improving speed and responsiveness. The access time of RAM is on the order of nanoseconds while the access time of physical discs is on the order of milliseconds. This is a difference of six orders of magnitude or 1,000,000 times faster.
+
+SETUP
+	All settings are defined in /etc/asd.conf which is included in the package.
+	
+	At a minimum, define the target directories to be managed by asd and note that at least one location needs to be defined.
+
+	Example: 
+	WHATTOSYNC=('/var/log' '/home/foo/bar')
+
+	Optionally redefine the location of your distro's tmpfs. Do this in the TMPFS variable. Note that for Arch Linux, the default value of "/dev/shm" should work just fine. Be sure to read the warning about using software such as bleachbit with asd since bleachbit likes to remove files stored in /tmp. This is why a value of /dev/shm is better.
+
+USAGE
+	Do not call /usr/bin/anything-sync-daemon directly. Instead use the distro provided /usr/bin/rc.d to interact with asd via the daemon script.
+
+	start		Turn on asd. Make symlinks and sync the target directories from disc to tmpfs.
+	stop		Turn off asd. Sync the target directories from tmpfs back to disc and remove the symlinks.
+	sync		Sync data between locations. The target directories in tmpfs are sync'ed back to the disc and the symlinks are left in place.
+
+	Note that users of systemd may also enjoy asd out of the box as there is an included template for systemd.
+
+	The initial synchronization will occur when the daemon starts. Additionally, cron (if running on your system) will call it to sync or update once per hour. Finally, asd will sync back a final time when it is called to stop. Users can call the daemon to start, stop, or sync like any standard Arch daemon.
+	
+	It is highly recommended to start/stop the daemon at boot/shutdown. This is accomplished by adding asd to the DAEMONS array in /etc/rc.conf like so: 
+	
+	DAEMONS=(... @asd ...)
+
+	For more, see: https://wiki.archlinux.org/index.php/Anything-sync-daemon
+
+BUGS
+	No known bugs.
+
+AUTHOR
+	graysky (graysky AT archlinux DOT us)

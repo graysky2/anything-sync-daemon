@@ -1,0 +1,81 @@
+#!/bin/bash
+# Anything-sync-daemon
+# By graysky <graysky AT archlinux DOT us>
+# Inspired by some code originally  written by Colin Verot
+
+. /etc/asd.conf
+VOLATILE="$TMPFS/asd"
+
+sync() {
+	# sync hdd to tmpfs and back again
+	for i in "${WHATTOSYNC[@]}"; do
+		STATIC="$i-backup"	# this is the hdd bound backup in case of power failure
+		LINK="$i"	# this is the name of the symlink
+
+		if [[ -d $LINK ]]; then
+			[[ -d "$VOLATILE$i" ]] || mkdir -p "$VOLATILE$i" || "install -Dm755 $VOLATILE$i"
+
+			# backup targets and link to tmpfs
+			if [[ $(readlink "$LINK") != "$VOLATILE$i" ]]; then
+				mv $LINK $STATIC
+				ln -s $VOLATILE$i $LINK
+			fi
+
+			# sync the RAM targets to the disc
+			if [[ -e $LINK/.flagged ]]; then
+				rsync -a --delete --exclude .flagged "$LINK/" "$STATIC/"
+			else
+				rsync -a "$STATIC/" "$LINK/"
+				touch "$LINK/.flagged"
+			fi
+		else
+			/bin/true
+		fi
+	done
+}
+
+check() {
+	# crash recovery
+	for i in "${WHATTOSYNC[@]}"; do
+		STATIC="$i-backup"  # this is the hdd bound backup in case of power failure
+		LINK="$i" # this is the name of the symlink
+
+		[[ -h $LINK ]] && rm -f $LINK
+		[[ -d $STATIC ]] && mv $STATIC $LINK
+	done
+}
+
+unsync() {
+	# restore virgin state on physical discsa
+	for i in "${WHATTOSYNC[@]}"; do
+		STATIC="$i-backup"  # this is the hdd bound backup in case of power failure
+		LINK="$i" # this is the name of the symlink
+
+		# check if target is there
+		if [[ -h $LINK ]]; then
+			rm -f $LINK
+			[[ -d $STATIC ]] && mv $STATIC $LINK
+			[[ -d "$VOLATILE$i" ]] && rm -rf $VOLATILE$i
+		else
+			/bin/true
+		fi
+	done
+}
+
+case "$1" in
+	check)
+		# do not run if the daemon is running
+		[[ ! -f /run/daemons/asd ]] && check
+		;;
+	sync)
+		sync
+		;;
+	unsync)
+		# make sure the daemon is running
+		[[ -f /run/daemons/asd ]] && unsync
+		;;
+	*)
+		# keep user from messing with this directly
+		[[ -f /run/daemons/asd ]] && echo "You should not call this script directly, let the /etc/rc.d/asd do it for you!" && exit 1
+esac
+exit 0

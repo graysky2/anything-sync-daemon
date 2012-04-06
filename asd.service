@@ -1,0 +1,12 @@
+[Unit]
+Description=Symlinks and syncs user defined dirs to RAM thus reducing HDD/SDD calls and speeding-up the system
+Wants=local-fs.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/etc/rc.d/asd start
+ExecStop=/etc/rc.d/asd stop
+
+[Install]
+WantedBy=multi-user.target
