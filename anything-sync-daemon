@@ -8,6 +8,7 @@ VOLATILE="$TMPFS/asd"
 
 sane() {
 	[[ -z "${WHATTOSYNC[0]}" ]] && echo "Must define at least one directory in /etc/asd.conf" && exit 0 
+	[[ ! -d "$TMPFS" ]] && echo "I cannot find $TMPFS" && exit 0
 }
 
 sync() {
