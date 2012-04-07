@@ -6,11 +6,6 @@
 . /etc/asd.conf
 VOLATILE="$TMPFS/asd"
 
-sane() {
-	[[ -z "${WHATTOSYNC[0]}" ]] && echo "Must define at least one directory in /etc/asd.conf" && exit 0 
-	[[ ! -d "$TMPFS" ]] && echo "I cannot find $TMPFS" && exit 0
-}
-
 sync() {
 	# sync hdd to tmpfs and back again
 	for i in "${WHATTOSYNC[@]}"; do
@@ -73,7 +68,7 @@ case "$1" in
 		[[ ! -f /run/daemons/asd ]] && check
 		;;
 	sync)
-		sane && sync
+		sync
 		;;
 	unsync)
 		# make sure the daemon is running
@@ -81,6 +76,6 @@ case "$1" in
 		;;
 	*)
 		# keep user from messing with this directly
-		[[ -f /run/daemons/asd ]] && echo "You should not call this script directly, let the /etc/rc.d/asd do it for you!" && exit 1
+		echo "You should not call this script directly, let the /etc/rc.d/asd do it for you!" && exit 0
 esac
 exit 0
