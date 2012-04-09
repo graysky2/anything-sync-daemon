@@ -91,7 +91,7 @@ shift "$((${OPTIND} - 1))"
 
 source "$CONF"
 
-declare -r VOLATILE="$TMPFS/asd"
+declare -r VOLATILE="$(readlink -f "$TMPFS")/asd"
 
 
 case "$1" in
