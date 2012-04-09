@@ -15,7 +15,7 @@ sanity() {
 
 start() {
 	stat_busy 'Starting Anything-Sync-Daemon'
-	if [[ -f /run/daemons/asd ]]; then
+	if ! ck_daemon asd; then
 		stat_append '(Anything-Sync-Daemon is already started.)'
 		stat_die
 	else
@@ -28,7 +28,7 @@ start() {
 
 sync() {
 	stat_busy 'Syncing tmpfs to physical disc'
-	if [[ ! -f /run/daemons/asd ]]; then
+	if ck_daemon asd; then
 		stat_append '(Anything-Sync-Daemon is not running... cannot sync.)'
 		stat_fail
 	else
@@ -39,7 +39,7 @@ sync() {
 
 stop() {
 	stat_busy 'Stopping Anything-Sync-Daemon'
-	if [[ ! -f /run/daemons/asd ]]; then
+	if ck_daemon asd; then
 		stat_append '(Anything-Sync-Daemon has already been stopped.)'
 		stat_die	# check if already stopped
 	else
