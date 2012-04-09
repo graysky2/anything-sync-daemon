@@ -49,9 +49,10 @@ check() {
 	for i in "${WHATTOSYNC[@]}"; do
 		STATIC="$i-backup"  # this is the hdd bound backup in case of power failure
 		LINK="$i" # this is the name of the symlink
-
-		[[ -h "$LINK" ]] && rm -f "$LINK"
-		[[ -d "$STATIC" ]] && mv "$STATIC" "$LINK"
+		if [[ ! -e "$VOLATILE$i/.flagged" ]]; then
+			[[ -h "$LINK" ]] && rm -f "$LINK"
+			[[ -d "$STATIC" ]] && mv "$STATIC" "$LINK"
+		fi
 	done
 }
 
