@@ -14,17 +14,32 @@ sanity() {
 		echo "I cannot read $TMPFS which is defined in $CONF" >&2
 		return 3
 	fi
+
+	if [[ -z "$PREFIX" ]]; then
+		echo "Must define a prefix in $CONF" >&2
+		return 4
+	fi
+
+	if [[ -z "$PREFIX_PERMISSIONS" ]]; then
+		echo "Must define prefix permissions in $CONF" >&2
+		return 5
+	fi
 }
 
 sync() {
 	# sync hdd to tmpfs and back again
 	local i STATIC LINK
+	install -d -m"$PREFIX_PERMISSIONS" "$VOLATILE" || {
+		echo "Failed to create $VOLATILE" >&2
+		return 11
+	}
+	
 	for i in "${WHATTOSYNC[@]}"; do
 		STATIC="$i-backup"	# this is the hdd bound backup in case of power failure
 		LINK="$i"	# this is the name of the symlink
 
 		if [[ -d $LINK ]]; then
-			[[ -d "$VOLATILE$i" ]] || mkdir -p "$VOLATILE$i" || install -Dm755 "$VOLATILE$i"
+			[[ -d "$VOLATILE$i" ]] || install -d -m755 "$VOLATILE$i"
 
 			# backup targets and link to tmpfs
 			if [[ "$(readlink "$LINK")" != "$VOLATILE$i" ]]; then
@@ -91,7 +106,7 @@ shift "$((${OPTIND} - 1))"
 
 source "$CONF"
 
-declare -r VOLATILE="$(readlink -f "$TMPFS")/asd"
+declare -r VOLATILE="$(readlink -f "$TMPFS")/$PREFIX"
 
 
 case "$1" in
