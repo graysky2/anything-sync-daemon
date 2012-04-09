@@ -28,8 +28,6 @@ sync() {
 				rsync -a "$STATIC/" "$LINK/"
 				touch "$LINK/.flagged"
 			fi
-		else
-			/bin/true
 		fi
 	done
 }
@@ -56,8 +54,6 @@ unsync() {
 			rm -f "$LINK"
 			[[ -d "$STATIC" ]] && mv "$STATIC" "$LINK"
 			[[ -d "$VOLATILE$i" ]] && rm -rf "$VOLATILE$i"
-		else
-			/bin/true
 		fi
 	done
 }
