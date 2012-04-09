@@ -26,7 +26,7 @@ sync() {
 				rsync -a --delete --exclude .flagged "$LINK/" "$STATIC/"
 			else
 				rsync -a "$STATIC/" "$LINK/"
-				touch "$LINK/.flagged"
+				> "$LINK/.flagged"
 			fi
 		fi
 	done
