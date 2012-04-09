@@ -1,20 +1,16 @@
 #!/bin/bash
 . /etc/rc.conf
 . /etc/rc.d/functions
-. /etc/asd.conf
 
 sanity() {
+	local message
 	stat_busy 'Checking configuration'
-	if [[ -z "${WHATTOSYNC[0]}" ]]; then
-		stat_append '(Must define at least one directory in /etc/asd.conf)'
+	message=$(/usr/bin/anything-sync-daemon sanity 2>&1) && {
+		stat_done
+	} || {
+		stat_append "($message)"
 		stat_die
-	fi
-
-	if [[ ! -d "$TMPFS" ]]; then
-		stat_append '(I cannot read $TMPFS which is defined in /etc/asd.conf)'
-		stat_die
-	fi
-	stat_done
+	}
 }
 
 start() {
