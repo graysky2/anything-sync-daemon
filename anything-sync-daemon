@@ -3,9 +3,6 @@
 # By graysky <graysky AT archlinux DOT us>
 # Inspired by some code originally  written by Colin Verot
 
-. /etc/asd.conf
-declare -r VOLATILE="$TMPFS/asd"
-
 sync() {
 	# sync hdd to tmpfs and back again
 	local i STATIC LINK
@@ -60,6 +57,27 @@ unsync() {
 		fi
 	done
 }
+
+# parse options
+CONF="/etc/asd.conf"
+OPTIND=1
+OPTARG=""
+opt=""
+while getopts 'c:' opt; do
+  case "$opt" in
+    c)  CONF="${OPTARG}";;
+  esac
+done
+shift "$((${OPTIND} - 1))"
+
+[[ ! -f "$CONF" ]] && {
+	echo "$CONF does not exist!"
+	exit 1
+}
+
+source "$CONF"
+
+declare -r VOLATILE="$TMPFS/asd"
 
 case "$1" in
 	check)
