@@ -16,13 +16,13 @@ sync() {
 			[[ -d "$VOLATILE$i" ]] || mkdir -p "$VOLATILE$i" || install -Dm755 "$VOLATILE$i"
 
 			# backup targets and link to tmpfs
-			if [[ $(readlink "$LINK") != "$VOLATILE$i" ]]; then
-				mv $LINK $STATIC
-				ln -s $VOLATILE$i $LINK
+			if [[ "$(readlink "$LINK")" != "$VOLATILE$i" ]]; then
+				mv "$LINK" "$STATIC"
+				ln -s "$VOLATILE$i" "$LINK"
 			fi
 
 			# sync the RAM targets to the disc
-			if [[ -e $LINK/.flagged ]]; then
+			if [[ -e "$LINK/.flagged" ]]; then
 				rsync -a --delete --exclude .flagged "$LINK/" "$STATIC/"
 			else
 				rsync -a "$STATIC/" "$LINK/"
@@ -40,8 +40,8 @@ check() {
 		STATIC="$i-backup"  # this is the hdd bound backup in case of power failure
 		LINK="$i" # this is the name of the symlink
 
-		[[ -h $LINK ]] && rm -f $LINK
-		[[ -d $STATIC ]] && mv $STATIC $LINK
+		[[ -h "$LINK" ]] && rm -f "$LINK"
+		[[ -d "$STATIC" ]] && mv "$STATIC" "$LINK"
 	done
 }
 
@@ -52,10 +52,10 @@ unsync() {
 		LINK="$i" # this is the name of the symlink
 
 		# check if target is there
-		if [[ -h $LINK ]]; then
-			rm -f $LINK
-			[[ -d $STATIC ]] && mv $STATIC $LINK
-			[[ -d "$VOLATILE$i" ]] && rm -rf $VOLATILE$i
+		if [[ -h "$LINK" ]]; then
+			rm -f "$LINK"
+			[[ -d "$STATIC" ]] && mv "$STATIC" "$LINK"
+			[[ -d "$VOLATILE$i" ]] && rm -rf "$VOLATILE$i"
 		else
 			/bin/true
 		fi
