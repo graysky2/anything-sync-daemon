@@ -13,7 +13,7 @@ sync() {
 		LINK="$i"	# this is the name of the symlink
 
 		if [[ -d $LINK ]]; then
-			[[ -d "$VOLATILE$i" ]] || mkdir -p "$VOLATILE$i" || "install -Dm755 $VOLATILE$i"
+			[[ -d "$VOLATILE$i" ]] || mkdir -p "$VOLATILE$i" || install -Dm755 "$VOLATILE$i"
 
 			# backup targets and link to tmpfs
 			if [[ $(readlink "$LINK") != "$VOLATILE$i" ]]; then
