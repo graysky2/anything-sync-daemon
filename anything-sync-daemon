@@ -85,6 +85,8 @@ unsync() {
 			[[ -d "$VOLATILE$i" ]] && rm -rf "$VOLATILE$i"
 		fi
 	done
+
+	rm -rf "$VOLATILE"
 }
 
 # parse options
