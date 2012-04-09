@@ -57,7 +57,7 @@ check() {
 }
 
 unsync() {
-	# restore virgin state on physical discsa
+	# restore virgin state on physical discs
 	local i STATIC LINK
 	for i in "${WHATTOSYNC[@]}"; do
 		STATIC="$i-backup"  # this is the hdd bound backup in case of power failure
@@ -99,8 +99,7 @@ case "$1" in
 		sanity;;
 	check)
 		sanity || exit $?
-		# do not run if the daemon is running
-		[[ ! -f /run/daemons/asd ]] && check
+		check
 		;;
 	sync)
 		sanity || exit $?
@@ -108,10 +107,9 @@ case "$1" in
 		;;
 	unsync)
 		sanity || exit $?
-		# make sure the daemon is running
-		[[ -f /run/daemons/asd ]] && unsync
+		unsync
 		;;
 	*)
-		# keep user from messing with this directly
-		echo "You should not call this script directly, let the /etc/rc.d/asd do it for you!" >&2 && exit 0
+		# usage
+		echo "usage: $0 [-c <file>] {sanity|check|sync|unsync}"
 esac
