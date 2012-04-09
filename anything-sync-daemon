@@ -4,10 +4,11 @@
 # Inspired by some code originally  written by Colin Verot
 
 . /etc/asd.conf
-VOLATILE="$TMPFS/asd"
+declare -r VOLATILE="$TMPFS/asd"
 
 sync() {
 	# sync hdd to tmpfs and back again
+	local i STATIC LINK
 	for i in "${WHATTOSYNC[@]}"; do
 		STATIC="$i-backup"	# this is the hdd bound backup in case of power failure
 		LINK="$i"	# this is the name of the symlink
@@ -34,6 +35,7 @@ sync() {
 
 check() {
 	# crash recovery
+	local i STATIC LINK
 	for i in "${WHATTOSYNC[@]}"; do
 		STATIC="$i-backup"  # this is the hdd bound backup in case of power failure
 		LINK="$i" # this is the name of the symlink
@@ -45,6 +47,7 @@ check() {
 
 unsync() {
 	# restore virgin state on physical discsa
+	local i STATIC LINK
 	for i in "${WHATTOSYNC[@]}"; do
 		STATIC="$i-backup"  # this is the hdd bound backup in case of power failure
 		LINK="$i" # this is the name of the symlink
