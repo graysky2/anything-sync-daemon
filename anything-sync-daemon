@@ -9,7 +9,7 @@ VOLATILE="$TMPFS/asd"
 sync() {
 	# sync hdd to tmpfs and back again
 	for i in "${WHATTOSYNC[@]}"; do
-		STATIC="$i-backup"	# this is the hdd bound backup in case of power failure
+		STATIC="$i-backup_asd"	# this is the hdd bound backup in case of power failure
 		LINK="$i"	# this is the name of the symlink
 
 		if [[ -d $LINK ]]; then
@@ -37,7 +37,7 @@ sync() {
 check() {
 	# crash recovery
 	for i in "${WHATTOSYNC[@]}"; do
-		STATIC="$i-backup"  # this is the hdd bound backup in case of power failure
+		STATIC="$i-backup_asd"  # this is the hdd bound backup in case of power failure
 		LINK="$i" # this is the name of the symlink
 
 		[[ -h $LINK ]] && rm -f $LINK
@@ -48,7 +48,7 @@ check() {
 unsync() {
 	# restore virgin state on physical discsa
 	for i in "${WHATTOSYNC[@]}"; do
-		STATIC="$i-backup"  # this is the hdd bound backup in case of power failure
+		STATIC="$i-backup_asd"  # this is the hdd bound backup in case of power failure
 		LINK="$i" # this is the name of the symlink
 
 		# check if target is there
