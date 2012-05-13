@@ -3,79 +3,130 @@
 # By graysky <graysky AT archlinux DOT us>
 # Inspired by some code originally  written by Colin Verot
 
-. /etc/asd.conf
-VOLATILE="$TMPFS/asd"
+sanity() {
+	# check the configuration
+	if [[ -z "${WHATTOSYNC[0]}" ]]; then
+		echo "Must define at least one directory in $CONF" >&2
+		return 2
+	fi
+
+	if [[ ! -d "$TMPFS" ]]; then
+		echo "I cannot read $TMPFS which is defined in $CONF" >&2
+		return 3
+	fi
+
+	if [[ -z "$PREFIX" ]]; then
+		echo "Must define a prefix in $CONF" >&2
+		return 4
+	fi
+
+	if [[ -z "$PREFIX_PERMISSIONS" ]]; then
+		echo "Must define prefix permissions in $CONF" >&2
+		return 5
+	fi
+}
 
 sync() {
 	# sync hdd to tmpfs and back again
+	local i STATIC LINK
+	install -d -m"$PREFIX_PERMISSIONS" "$VOLATILE" || {
+		echo "Failed to create $VOLATILE" >&2
+		return 11
+	}
+	
 	for i in "${WHATTOSYNC[@]}"; do
 		STATIC="$i-backup_asd"	# this is the hdd bound backup in case of power failure
 		LINK="$i"	# this is the name of the symlink
 
 		if [[ -d $LINK ]]; then
-			[[ -d "$VOLATILE$i" ]] || mkdir -p "$VOLATILE$i" || "install -Dm755 $VOLATILE$i"
+			[[ -d "$VOLATILE$i" ]] || install -d -m755 "$VOLATILE$i"
 
 			# backup targets and link to tmpfs
-			if [[ $(readlink "$LINK") != "$VOLATILE$i" ]]; then
-				mv $LINK $STATIC
-				ln -s $VOLATILE$i $LINK
+			if [[ "$(readlink "$LINK")" != "$VOLATILE$i" ]]; then
+				mv "$LINK" "$STATIC"
+				ln -s "$VOLATILE$i" "$LINK"
 			fi
 
 			# sync the RAM targets to the disc
-			if [[ -e $LINK/.flagged ]]; then
+			if [[ -e "$LINK/.flagged" ]]; then
 				rsync -a --delete --exclude .flagged "$LINK/" "$STATIC/"
 			else
 				rsync -a "$STATIC/" "$LINK/"
-				touch "$LINK/.flagged"
+				> "$LINK/.flagged"
 			fi
-		else
-			/bin/true
 		fi
 	done
 }
 
 check() {
 	# crash recovery
+	local i STATIC LINK
 	for i in "${WHATTOSYNC[@]}"; do
 		STATIC="$i-backup_asd"  # this is the hdd bound backup in case of power failure
 		LINK="$i" # this is the name of the symlink
-
-		[[ -h $LINK ]] && rm -f $LINK
-		[[ -d $STATIC ]] && mv $STATIC $LINK
+		if [[ ! -e "$VOLATILE$i/.flagged" ]]; then
+			[[ -h "$LINK" ]] && rm -f "$LINK"
+			[[ -d "$STATIC" ]] && mv "$STATIC" "$LINK"
+		fi
 	done
 }
 
 unsync() {
-	# restore virgin state on physical discsa
+	# restore virgin state on physical discs
+	local i STATIC LINK
 	for i in "${WHATTOSYNC[@]}"; do
 		STATIC="$i-backup_asd"  # this is the hdd bound backup in case of power failure
 		LINK="$i" # this is the name of the symlink
 
 		# check if target is there
-		if [[ -h $LINK ]]; then
-			rm -f $LINK
-			[[ -d $STATIC ]] && mv $STATIC $LINK
-			[[ -d "$VOLATILE$i" ]] && rm -rf $VOLATILE$i
-		else
-			/bin/true
+		if [[ -h "$LINK" ]]; then
+			rm -f "$LINK"
+			[[ -d "$STATIC" ]] && mv "$STATIC" "$LINK"
+			[[ -d "$VOLATILE$i" ]] && rm -rf "$VOLATILE$i"
 		fi
 	done
+
+	rm -rf "$VOLATILE"
 }
 
+# parse options
+CONF="/etc/asd.conf"
+OPTIND=1
+OPTARG=""
+opt=""
+while getopts 'c:' opt; do
+  case "$opt" in
+    c)  CONF="${OPTARG}";;
+  esac
+done
+shift "$((${OPTIND} - 1))"
+
+[[ ! -f "$CONF" ]] && {
+	echo "$CONF does not exist!" >&2
+	exit 1
+}
+
+source "$CONF"
+
+declare -r VOLATILE="$(readlink -f "$TMPFS")/$PREFIX"
+
+
 case "$1" in
+	sanity)
+		sanity;;
 	check)
-		# do not run if the daemon is running
-		[[ ! -f /run/daemons/asd ]] && check
+		sanity || exit $?
+		check
 		;;
 	sync)
+		sanity || exit $?
 		sync
 		;;
 	unsync)
-		# make sure the daemon is running
-		[[ -f /run/daemons/asd ]] && unsync
+		sanity || exit $?
+		unsync
 		;;
 	*)
-		# keep user from messing with this directly
-		echo "You should not call this script directly, let the /etc/rc.d/asd do it for you!" && exit 0
+		# usage
+		echo "usage: $0 [-c <file>] {sanity|check|sync|unsync}"
 esac
-exit 0

@@ -1,25 +1,21 @@
 #!/bin/bash
 . /etc/rc.conf
 . /etc/rc.d/functions
-. /etc/asd.conf
 
 sanity() {
+	local message
 	stat_busy 'Checking configuration'
-	if [[ -z "${WHATTOSYNC[0]}" ]]; then
-		stat_append '(Must define at least one directory in /etc/asd.conf)'
+	message=$(/usr/bin/anything-sync-daemon sanity 2>&1) && {
+		stat_done
+	} || {
+		stat_append "($message)"
 		stat_die
-	fi
-
-	if [[ ! -d "$TMPFS" ]]; then
-		stat_append '(I cannot read $TMPFS which is defined in /etc/asd.conf)'
-		stat_die
-	fi
-	stat_done
+	}
 }
 
 start() {
 	stat_busy 'Starting Anything-Sync-Daemon'
-	if [[ -f /run/daemons/asd ]]; then
+	if ! ck_daemon asd; then
 		stat_append '(Anything-Sync-Daemon is already started.)'
 		stat_die
 	else
@@ -32,7 +28,7 @@ start() {
 
 sync() {
 	stat_busy 'Syncing tmpfs to physical disc'
-	if [[ ! -f /run/daemons/asd ]]; then
+	if ck_daemon asd; then
 		stat_append '(Anything-Sync-Daemon is not running... cannot sync.)'
 		stat_fail
 	else
@@ -43,7 +39,7 @@ sync() {
 
 stop() {
 	stat_busy 'Stopping Anything-Sync-Daemon'
-	if [[ ! -f /run/daemons/asd ]]; then
+	if ck_daemon asd; then
 		stat_append '(Anything-Sync-Daemon has already been stopped.)'
 		stat_die	# check if already stopped
 	else
