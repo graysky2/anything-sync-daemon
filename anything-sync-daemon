@@ -1,6 +1,7 @@
 #!/bin/bash
 # Anything-sync-daemon
 # By graysky <graysky AT archlinux DOT us>
+# Modified by Victor Unegbu <victor@unegbu.com>
 # Inspired by some code originally  written by Colin Verot
 
 sanity() {
@@ -69,6 +70,7 @@ check() {
 			[[ -d "$STATIC" ]] && mv "$STATIC" "$LINK"
 		fi
 	done
+    /bin/true
 }
 
 unsync() {
@@ -110,23 +112,40 @@ source "$CONF"
 
 declare -r VOLATILE="$(readlink -f "$TMPFS")/$PREFIX"
 
-
 case "$1" in
-	sanity)
-		sanity;;
-	check)
-		sanity || exit $?
-		check
-		;;
-	sync)
-		sanity || exit $?
-		sync
-		;;
-	unsync)
-		sanity || exit $?
-		unsync
-		;;
-	*)
-		# usage
-		echo "usage: $0 [-c <file>] {sanity|check|sync|unsync}"
+    sanity)
+        sanity;;
+    start)
+        if [[ -f $RUNFILE ]]; then
+            echo "Anything-Sync-Daemon is already started."
+        else
+            check
+            sync
+            mkdir -p $(dirname $RUNFILE) > $RUNFILE
+        fi
+        ;;
+    stop)
+        if [[ ! -f $RUNFILE ]]; then
+            echo "Anything-Sync-Daemon is already stopped."
+        else
+            sanity
+            sync
+            unsync
+            rm $RUNFILE
+        fi
+        ;;
+    check)
+        sanity || exit $?
+        check;;
+    sync)
+        sanity || exit $?
+        sync
+        ;;
+    unsync)
+        sanity || exit $?
+        unsync
+        ;;
+    *)
+        # usage
+        echo "usage: $0 [-c <file>] {check|sanity|sync|unsync}"
 esac
