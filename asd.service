@@ -4,9 +4,11 @@ Wants=local-fs.target
 
 [Service]
 Type=oneshot
+Environment=RUNFILE=/var/run/daemons/asd
 RemainAfterExit=yes
-ExecStart=/etc/rc.d/asd start
-ExecStop=/etc/rc.d/asd stop
+
+ExecStart=/usr/bin/anything-sync-daemon start
+ExecStop=/usr/bin/anything-sync-daemon stop
 
 [Install]
 WantedBy=multi-user.target
