@@ -1,7 +1,3 @@
-v3.3
-28-Apr-2012
-Minor tweak where backup dir is renamed to a more obscure name to avoid potential user data loss.
-
-v3.2
-06-Apr-2012
+v3.0
+10-Aug-2012
 Initial public release

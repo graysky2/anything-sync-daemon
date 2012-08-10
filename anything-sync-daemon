@@ -1,46 +1,38 @@
 #!/bin/bash
-# Anything-sync-daemon
 # By graysky <graysky AT archlinux DOT us>
-# Modified by Victor Unegbu <victor@unegbu.com>
 # Inspired by some code originally  written by Colin Verot
 
-sanity() {
-	# check the configuration
-	if [[ -z "${WHATTOSYNC[0]}" ]]; then
-		echo "Must define at least one directory in $CONF" >&2
-		return 2
-	fi
+# nothing to do if there is no conf file
+if [[ ! -f /etc/asd.conf ]]; then
+	echo "Cannnot find /etc/asd.conf so bailing.  Reinstall package to use profile-sync-daemon."
+	exit 0
+else
+	. /etc/asd.conf
+fi
 
-	if [[ ! -d "$TMPFS" ]]; then
-		echo "I cannot read $TMPFS which is defined in $CONF" >&2
-		return 3
-	fi
+# nothing to do if these are empty
+if [[ -z "${WHATTOSYNC[0]}" ]]; then
+	echo "Must define at least one directory in the WHATTOSYNC array in /etc/asd.conf"
+	exit 0
+fi
 
-	if [[ -z "$PREFIX" ]]; then
-		echo "Must define a prefix in $CONF" >&2
-		return 4
-	fi
+[[ -z "$VOLATILE" ]] && VOLATILE="/dev/shm"
+[[ -z "$PREFIX_PERMISSIONS" ]] && PREFIX_PERMISSIONS=700
 
-	if [[ -z "$PREFIX_PERMISSIONS" ]]; then
-		echo "Must define prefix permissions in $CONF" >&2
-		return 5
-	fi
-}
+DAEMON_FILE="/run/asd"
 
 sync() {
-	# sync hdd to tmpfs and back again
-	local i STATIC LINK
-	install -d -m"$PREFIX_PERMISSIONS" "$VOLATILE" || {
-		echo "Failed to create $VOLATILE" >&2
-		return 11
-	}
-	
+	touch "$DAEMON_FILE"
+	# sync profiles to tmpfs and back again
+	local STATIC LINK
 	for i in "${WHATTOSYNC[@]}"; do
-		STATIC="$i-backup_asd"	# this is the hdd bound backup in case of power failure
-		LINK="$i"	# this is the name of the symlink
+		STATIC="$i-backup_asd"  # this is the hdd bound backup in case of power failure
+		LINK="$i" # this is the name of the symlink
 
+		# check if target is a directory
 		if [[ -d $LINK ]]; then
-			[[ -d "$VOLATILE$i" ]] || install -d -m755 "$VOLATILE$i"
+			USER=$(/usr/bin/stat -c %U "$i")
+			[[ -d "$VOLATILE$i" ]] || su -c "install -dm$PREFIX_PERMISSIONS '$VOLATILE$i'" $USER
 
 			# backup targets and link to tmpfs
 			if [[ "$(readlink "$LINK")" != "$VOLATILE$i" ]]; then
@@ -50,10 +42,12 @@ sync() {
 
 			# sync the RAM targets to the disc
 			if [[ -e "$LINK/.flagged" ]]; then
-				rsync -a --delete --exclude .flagged "$LINK/" "$STATIC/"
-			else
-				rsync -a "$STATIC/" "$LINK/"
-				> "$LINK/.flagged"
+				if [[ -e $LINK/.flagged ]]; then
+					su -c "rsync -a --delete --exclude .flagged '$LINK/' '$STATIC/'" $USER
+				else
+					su -c "rsync -a '$STATIC/' '$LINK/'" $USER
+					su -c "touch '$LINK/.flagged'" $USER
+				fi
 			fi
 		fi
 	done
@@ -70,11 +64,9 @@ check() {
 			[[ -d "$STATIC" ]] && mv "$STATIC" "$LINK"
 		fi
 	done
-    /bin/true
 }
 
 unsync() {
-	# restore virgin state on physical discs
 	local i STATIC LINK
 	for i in "${WHATTOSYNC[@]}"; do
 		STATIC="$i-backup_asd"  # this is the hdd bound backup in case of power failure
@@ -88,64 +80,26 @@ unsync() {
 		fi
 	done
 
-	rm -rf "$VOLATILE"
+	rm -f -- "$DAEMON_FILE"
 }
-
-# parse options
-CONF="/etc/asd.conf"
-OPTIND=1
-OPTARG=""
-opt=""
-while getopts 'c:' opt; do
-  case "$opt" in
-    c)  CONF="${OPTARG}";;
-  esac
-done
-shift "$((${OPTIND} - 1))"
-
-[[ ! -f "$CONF" ]] && {
-	echo "$CONF does not exist!" >&2
-	exit 1
-}
-
-source "$CONF"
-
-declare -r VOLATILE="$(readlink -f "$TMPFS")/$PREFIX"
 
 case "$1" in
-    sanity)
-        sanity;;
-    start)
-        if [[ -f $RUNFILE ]]; then
-            echo "Anything-Sync-Daemon is already started."
-        else
-            check
-            sync
-            mkdir -p $(dirname $RUNFILE) > $RUNFILE
-        fi
-        ;;
-    stop)
-        if [[ ! -f $RUNFILE ]]; then
-            echo "Anything-Sync-Daemon is already stopped."
-        else
-            sanity
-            sync
-            unsync
-            rm $RUNFILE
-        fi
-        ;;
-    check)
-        sanity || exit $?
-        check;;
-    sync)
-        sanity || exit $?
-        sync
-        ;;
-    unsync)
-        sanity || exit $?
-        unsync
-        ;;
-    *)
-        # usage
-        echo "usage: $0 [-c <file>] {check|sanity|sync|unsync}"
+	check)
+		# do not run if the daemon is running
+		[[ ! -f $DAEMON_FILE ]] && check
+		;;
+	sync)
+		sync
+		;;
+	unsync)
+		# make sure the daemon is running
+		[[ -f $DAEMON_FILE ]] && sync && unsync
+		;;
+	*) 
+		echo -en "\E[31musage: $0 {sync}"
+		tput sgr0 # reset colors to normal
+		echo
+		echo "sync) force a manual sync"
+		;;
 esac
+exit 0
