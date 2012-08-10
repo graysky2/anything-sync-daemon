@@ -12,7 +12,7 @@ case "$1" in
 			stat_fail && exit 1
 		fi
 		/usr/bin/anything-sync-daemon check
-		add_daemon psd
+		add_daemon asd
 		/usr/bin/anything-sync-daemon sync
 		stat_done
 		;;
@@ -23,7 +23,7 @@ case "$1" in
 			stat_fail
 		else
 			/usr/bin/anything-sync-daemon unsync
-			rm_daemon psd
+			rm_daemon asd
 			stat_done
 		fi
 		;;

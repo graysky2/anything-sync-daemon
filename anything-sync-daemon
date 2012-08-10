@@ -19,7 +19,7 @@ fi
 [[ -z "$VOLATILE" ]] && VOLATILE="/dev/shm"
 [[ -z "$PREFIX_PERMISSIONS" ]] && PREFIX_PERMISSIONS=700
 
-DAEMON_FILE="/run/asd"
+DAEMON_FILE="/run/daemons/asd"
 
 sync() {
 	touch "$DAEMON_FILE"
