@@ -3,7 +3,7 @@
 . /etc/rc.d/functions
 . /etc/asd.conf
 
-export DAEMON_FILE=/run/daemons/asd
+export DAEMON_FILE=/run/asd
 
 case "$1" in
 	start)
