@@ -3,6 +3,9 @@ NAME
 
 SYNOPSIS
 	rc.d [options] asd
+	or
+	systemctl start asd.service
+
 
 DESCRIPTION
 	Anything-sync-daemon (asd) is a tiny shell script designed to manage user specified directories in tmpfs and to periodically sync them back to your physical disc (HDD/SSD). This is accomplished via a symlinking step and an innovative use of rsync to maintain back-up and synchronization between the two. One of the major design goals of asd is completely transparent user experience.
@@ -21,18 +24,17 @@ SETUP
 	Example: 
 	WHATTOSYNC=('/var/log' '/home/foo/bar')
 
-	Optionally redefine the location of your distro's tmpfs. Do this in the TMPFS variable. Note that for Arch Linux, the default value of "/dev/shm" should work just fine. Be sure to read the warning about using software such as bleachbit with asd since bleachbit likes to remove files stored in /tmp. This is why a value of /dev/shm is better.
+	Optionally redefine the location of your distro's tmpfs. Do this by uncommenting and redefining the VOLATILE variable. Note that for Arch Linux, the default value of "/dev/shm" should work just fine. Be sure to read the warning about using software such as bleachbit with asd since bleachbit likes to remove files stored in /tmp. This is why a value of /dev/shm is better.
+
+	Optionally redefine the permissions of the link in tmpfs. The default is 700 to protect privacy of users.
 
 USAGE
-	Do not call /usr/bin/anything-sync-daemon directly. Instead use the distro provided /usr/bin/rc.d to interact with asd via the daemon script.
+	Do not call /usr/bin/anything-sync-daemon directly. Instead use the provided initscript (/usr/bin/rc.d) or systemd service file (asd.service)  to interact with asd via the daemon script.
 
 	start		Turn on asd. Make symlinks and sync the target directories from disc to tmpfs.
 	stop		Turn off asd. Sync the target directories from tmpfs back to disc and remove the symlinks.
-	sync		Sync data between locations. The target directories in tmpfs are sync'ed back to the disc and the symlinks are left in place.
 
-	Note that users of systemd may also enjoy asd out of the box as there is an included template for systemd.
-
-	The initial synchronization will occur when the daemon starts. Additionally, cron (if running on your system) will call it to sync or update once per hour. Finally, asd will sync back a final time when it is called to stop. Users can call the daemon to start, stop, or sync like any standard Arch daemon.
+	The initial synchronization will occur when the daemon starts. Additionally, cron (if running on your system) will call it to sync or update once per hour. Finally, asd will sync back a final time when it is called to stop.
 	
 	It is highly recommended to start/stop the daemon at boot/shutdown. This is accomplished by adding asd to the DAEMONS array in /etc/rc.conf like so: 
 	
