@@ -1,3 +1,7 @@
+v3.2
+11-Aug-2012
+Fixed systemd compt. issue - thanks xduugu
+
 v3.1
 11-Aug-2012
 Bug fixes no does multiple users just fine and improved crash recovery

@@ -19,7 +19,7 @@ fi
 [[ -z "$VOLATILE" ]] && VOLATILE="/dev/shm"
 [[ -z "$PREFIX_PERMISSIONS" ]] && PREFIX_PERMISSIONS=700
 
-DAEMON_FILE="/run/daemons/asd"
+DAEMON_FILE="/run/asd"
 
 check() {
 	local DIR USER BACKUP LINK
@@ -49,7 +49,7 @@ check() {
 sync() {
 	touch "$DAEMON_FILE"
 
-	# sync profiles to tmpfs and back again
+	# sync to tmpfs and back again
 	local DIR USER BACKUP LINK
 	for DIR in "${WHATTOSYNC[@]}"; do
 		BACKUP="$DIR-backup_asd"  # this is the hdd bound backup in case of power failure
@@ -70,7 +70,7 @@ sync() {
 				ln -s "$LINK" "$DIR"
 			fi
 
-			# sync the RAM targets to the disc
+			# sync the tmpfs targets to the disc
 			if [[ -e $LINK/.flagged ]]; then
 				su -c "rsync -a --delete --exclude .flagged '$LINK/' '$BACKUP/'" $USER
 			else
