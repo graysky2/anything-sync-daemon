@@ -21,61 +21,82 @@ fi
 
 DAEMON_FILE="/run/daemons/asd"
 
-sync() {
-	touch "$DAEMON_FILE"
-	
-	# sync profiles to tmpfs and back again
-	local STATIC LINK
-	for i in "${WHATTOSYNC[@]}"; do
-		STATIC="$i-backup_asd"  # this is the hdd bound backup in case of power failure
-		LINK="$i" # this is the name of the symlink
-		USER=$(/usr/bin/stat -c %U "$i")
+check() {
+	local DIR USER BACKUP LINK
+	for DIR in "${WHATTOSYNC[@]}"; do
+		BACKUP="$DIR-backup_asd"  # this is the hdd bound backup in case of power failure
+		if [[ -d "$BACKUP" ]]; then
+			USER=$(/usr/bin/stat -c %U "$BACKUP")
+		else
+			USER=$(/usr/bin/stat -c %U "$DIR")
+		fi
+		LINK="$VOLATILE/asd-$USER$DIR"
 
-		# check if target is a directory
-		if [[ -d $LINK ]]; then
-			[[ -r "$VOLATILE$i" ]] || su -c "install -dm$PREFIX_PERMISSIONS '$VOLATILE$LINK'" $USER
+		# if the machine was ungracefully shutdown then the backup will be on the filesystem
+		# and the link to tmpfs will be on the filesystem but the contents will be empty
+		# we need to simply remove the link and rotate the backup into place
 
-			# backup targets and link to tmpfs
-			if [[ "$(readlink "$LINK")" != "$VOLATILE$i" ]]; then
-				mv "$LINK" "$STATIC"
-				ln -s "$VOLATILE$i" "$LINK"
-			fi
-
-			# sync the RAM targets to the disc
-				if [[ -e $LINK/.flagged ]]; then
-					su -c "rsync -a --delete --exclude .flagged '$LINK/' '$STATIC/'" $USER
-				else
-					su -c "rsync -a '$STATIC/' '$LINK/'" $USER
-					su -c "touch '$LINK/.flagged'" $USER
-			fi
+		if [[ -e "$LINK/.flagged" ]]; then
+			# all is well so continue
+			/bin/true
+		else
+			[[ -h "$DIR" ]] && unlink "$DIR"
+			[[ -d "$BACKUP" ]] && mv "$BACKUP" "$DIR"
 		fi
 	done
 }
 
-check() {
-	# crash recovery
-	local i STATIC LINK
-	for i in "${WHATTOSYNC[@]}"; do
-		STATIC="$i-backup_asd"  # this is the hdd bound backup in case of power failure
-		LINK="$i" # this is the name of the symlink
-		if [[ ! -e "$VOLATILE$LINK/.flagged" ]]; then
-			[[ -h "$LINK" ]] && rm -f "$LINK"
-			[[ -d "$STATIC" ]] && mv "$STATIC" "$LINK"
+sync() {
+	touch "$DAEMON_FILE"
+
+	# sync profiles to tmpfs and back again
+	local DIR USER BACKUP LINK
+	for DIR in "${WHATTOSYNC[@]}"; do
+		BACKUP="$DIR-backup_asd"  # this is the hdd bound backup in case of power failure
+		if [[ -d "$BACKUP" ]]; then
+			USER=$(/usr/bin/stat -c %U "$BACKUP")
+		else
+			USER=$(/usr/bin/stat -c %U "$DIR")
+		fi
+		LINK="$VOLATILE/asd-$USER$DIR"
+
+		# make tmpfs container
+		if [[ -d "$DIR" ]]; then
+			[[ -r "$LINK" ]] || su -c "install -dm$PREFIX_PERMISSIONS '$LINK'" $USER
+
+			# backup target and link to tmpfs container
+			if [[ "$(readlink "$DIR")" != "$LINK" ]]; then
+				mv "$DIR" "$BACKUP"
+				ln -s "$LINK" "$DIR"
+			fi
+
+			# sync the RAM targets to the disc
+			if [[ -e $LINK/.flagged ]]; then
+				su -c "rsync -a --delete --exclude .flagged '$LINK/' '$BACKUP/'" $USER
+			else
+				su -c "rsync -a '$BACKUP/' '$LINK/'" $USER
+				su -c "touch '$LINK/.flagged'" $USER
+			fi
 		fi
 	done
 }
 
 unsync() {
-	local i STATIC LINK
-	for i in "${WHATTOSYNC[@]}"; do
-		STATIC="$i-backup_asd"  # this is the hdd bound backup in case of power failure
-		LINK="$i" # this is the name of the symlink
+	local DIR USER BACKUP LINK
+	for DIR in "${WHATTOSYNC[@]}"; do
+		BACKUP="$DIR-backup_asd"  # this is the hdd bound backup in case of power failure
+		USER=$(/usr/bin/stat -c %U "$BACKUP")
+		LINK="$VOLATILE/asd-$USER$DIR"
 
-		# check if target is there
-		if [[ -h "$LINK" ]]; then
-			rm -f "$LINK"
-			[[ -d "$STATIC" ]] && mv "$STATIC" "$LINK"
-			[[ -d "$VOLATILE$LINK" ]] && rm -rf "$VOLATILE$LINK"
+		# remove link and move data from tmpfs to disk
+		if [[ -h "$DIR" ]]; then
+			unlink "$DIR"
+			#	this assumes that the backup is always updated so be sure to invoke a sync
+			# before an unsync
+			#
+			# restore original dirtree
+			[[ -d "$BACKUP" ]] && mv "$BACKUP" "$DIR"
+			[[ -d "$LINK" ]] && rm -rf "$VOLATILE/asd-$USER"
 		fi
 	done
 	rm -f -- "$DAEMON_FILE"
@@ -87,9 +108,8 @@ case "$1" in
 		sync
 		;;
 	unsync)
-		# make sure the daemon is running
+		# make sure the daemon ran to setup the links
 		[[ -f $DAEMON_FILE ]] && sync && unsync
-		/bin/true
 		;;
 	*) 
 		echo -en "\E[31musage: $0 {sync}"
