@@ -31,7 +31,7 @@ All settings are defined in /etc/asd.conf which is included in the package.
 At a minimum, define the target directories to be managed by \fIasd\fP and note that at least one location needs to be defined.
 .PP
 Example: 
-\fBWHATTOSYNC=\fP('/var/log' '/home/foo/bar')
+\fBWHATTOSYNC=\fP('/home/foo/bar')
 .PP
 Optionally redefine the location of your distro's tmpfs. Do this by uncommenting and redefining the VOLATILE variable. Note that for Arch Linux, the default value of "/dev/shm" should work just fine. Be sure to read the warning about using software such as bleachbit with \fIasd\fP since bleachbit likes to remove files stored in /tmp. This is why a value of /dev/shm is better.
 .PP

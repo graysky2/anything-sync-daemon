@@ -22,7 +22,7 @@ SETUP
 	At a minimum, define the target directories to be managed by asd and note that at least one location needs to be defined.
 
 	Example: 
-	WHATTOSYNC=('/var/log' '/home/foo/bar')
+	WHATTOSYNC=('/home/foo/bar')
 
 	Optionally redefine the location of your distro's tmpfs. Do this by uncommenting and redefining the VOLATILE variable. Note that for Arch Linux, the default value of "/dev/shm" should work just fine. Be sure to read the warning about using software such as bleachbit with asd since bleachbit likes to remove files stored in /tmp. This is why a value of /dev/shm is better.
 
