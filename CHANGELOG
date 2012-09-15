@@ -1,3 +1,11 @@
+v3.5
+15-Sep-2012
+Added sync function to /etc/rc.d/asd.
+
+v3.4
+31-Aug-2012
+Modification to docs.
+
 v3.3
 11-Aug-2012
 Minor fix to initscript.

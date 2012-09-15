@@ -18,8 +18,17 @@ case "$1" in
 		rm_daemon asd
 		stat_done
 		;;
+	sync)
+		stat_busy 'Doing a user requested sync'
+		if [[ -f $DAEMON_FILE ]]; then
+			/usr/bin/anything-sync-daemon sync
+		else
+			stat_die
+		fi
+		stat_done
+		;;
 	*)
-		echo "usage $0 {start|stop}"
+		echo "usage $0 {start|stop|sync}"
 		;;
 esac
 exit 0
