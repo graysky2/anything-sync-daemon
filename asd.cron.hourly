@@ -1,2 +1,2 @@
 #!/bin/sh
-/usr/bin/anything-sync-daemon sync &> /dev/null
+/usr/bin/anything-sync-daemon resync &> /dev/null

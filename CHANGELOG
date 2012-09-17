@@ -1,3 +1,7 @@
+v3.6
+17-Sep-2012
+Fixed cron starting if daemon is not running.
+
 v3.5
 15-Sep-2012
 Added sync function to /etc/rc.d/asd.

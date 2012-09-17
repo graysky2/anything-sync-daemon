@@ -107,6 +107,9 @@ case "$1" in
 		[[ ! -f $DAEMON_FILE ]] && check
 		sync
 		;;
+	resync)
+		[[ -f $DAEMON_FILE ]] && sync
+		;;
 	unsync)
 		# make sure the daemon ran to setup the links
 		[[ -f $DAEMON_FILE ]] && sync && unsync
