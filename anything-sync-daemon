@@ -72,9 +72,9 @@ sync() {
 
 			# sync the tmpfs targets to the disc
 			if [[ -e $LINK/.flagged ]]; then
-				su -c "rsync -a --delete --exclude .flagged '$LINK/' '$BACKUP/'" $USER
+				su -c "rsync -a --delete-after --delay-updates --exclude .flagged '$LINK/' '$BACKUP/'" $USER
 			else
-				su -c "rsync -a '$BACKUP/' '$LINK/'" $USER
+				su -c "rsync -a --delay-updates '$BACKUP/' '$LINK/'" $USER
 				su -c "touch '$LINK/.flagged'" $USER
 			fi
 		fi

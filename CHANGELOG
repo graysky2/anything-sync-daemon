@@ -1,27 +1,31 @@
-v3.6
+v3.07
+16-Oct-2012
+Rsync runs in a safer mode during syncs.
+
+v3.06
 17-Sep-2012
 Fixed cron starting if daemon is not running.
 
-v3.5
+v3.05
 15-Sep-2012
 Added sync function to /etc/rc.d/asd.
 
-v3.4
+v3.04
 31-Aug-2012
 Modification to docs.
 
-v3.3
+v3.03
 11-Aug-2012
 Minor fix to initscript.
 
-v3.2
+v3.02
 11-Aug-2012
 Fixed systemd compt. issue - thanks xduugu.
 
-v3.1
+v3.01
 11-Aug-2012
 Bug fixes no does multiple users just fine and improved crash recovery.
 
-v3.0
+v3.00
 10-Aug-2012
 Initial public release.
