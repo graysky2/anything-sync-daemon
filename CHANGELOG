@@ -1,3 +1,7 @@
+v3.08
+02-Nov-2012
+Cosmetic change to asd.service.
+
 v3.07
 16-Oct-2012
 Rsync runs in a safer mode during syncs.
