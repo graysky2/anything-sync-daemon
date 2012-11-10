@@ -29,7 +29,7 @@ SETUP
 	Optionally redefine the permissions of the link in tmpfs. The default is 700 to protect privacy of users.
 
 USAGE
-	Do not call /usr/bin/anything-sync-daemon directly. Instead use the provided initscript (/usr/bin/rc.d) or systemd service file (asd.service)  to interact with asd via the daemon script.
+	Do not call /usr/bin/anything-sync-daemon directly. Instead use the provided initscript (/usr/bin/rc.d) or systemd service file (asd.service) to interact with asd via the daemon script.
 
 	start		Turn on asd. Make symlinks and sync the target directories from disc to tmpfs.
 	stop		Turn off asd. Sync the target directories from tmpfs back to disc and remove the symlinks.
@@ -41,6 +41,14 @@ USAGE
 	DAEMONS=(... @asd ...)
 
 	For more, see: https://wiki.archlinux.org/index.php/Anything-sync-daemon
+
+DEBUG MODE
+  The debug option can be called to show users exactly what asd will do based on the /etc/asd.conf entered. Call it like so:
+
+  $ anything-sync-daemon debug
+
+CONTRIBUTE
+  Should you wish to contribute to this code, please fork and send a pull request. Source is freely available on github: https://github.com/graysky2/anything-sync-daemon
 
 BUGS
 	No known bugs.

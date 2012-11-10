@@ -37,10 +37,7 @@ Optionally redefine the location of your distro's tmpfs. Do this by uncommenting
 .PP
 Optionally redefine the permissions of the link in tmpfs. The default is 700 to protect privacy of users.
 .SH USAGE
-.TP
-.B
-Do not call /usr/bin/anything-sync-daemon directly. Instead use the provided initscript (/usr/bin/rc.d) \fBor\fP systemd service file (asd.service)
-to interact with \fIasd\fP via the daemon script.
+Do not call /usr/bin/anything-sync-daemon directly. Instead use the provided initscript (/usr/bin/rc.d) \fBor\fP systemd service file (asd.service) to interact with \fIasd\fP via the daemon script.
 .TP
 .B
 \fIstart\fP
@@ -57,6 +54,12 @@ It is highly recommended to \fIstart\fP/stop the daemon at boot/shutdown. This i
 \fBDAEMONS=\fP(\.\.\. @\fIasd\fP \.\.\.)
 .PP
 For more, see: https://wiki.archlinux.org/index.php/Anything-sync-daemon
+.SH DEBUG MODE
+The debug option can be called to show users exactly what \fIasd\fP will do based on the /etc/asd.conf entered. Call it like so:
+.PP
+$ anything-sync-daemon debug
+.SH CONTRIBUTE
+Should you wish to contribute to this code, please fork and send a pull request. Source is freely available on github: https://github.com/graysky2/anything-sync-daemon
 .SH BUGS
 No known bugs.
 .SH AUTHOR
