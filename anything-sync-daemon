@@ -2,11 +2,11 @@
 # By graysky <graysky AT archlinux DOT us>
 # Inspired by some code originally  written by Colin Verot
 
-ASD_VERS="3.09"
+ASD_VERS="3.11"
 
 # nothing to do if there is no conf file
 if [[ ! -f /etc/asd.conf ]]; then
-	echo "Cannnot find /etc/asd.conf so bailing.  Reinstall package to use profile-sync-daemon."
+	echo "Cannnot find /etc/asd.conf so bailing.  Reinstall package to use anything-sync-daemon."
 	exit 1
 else
 	. /etc/asd.conf
@@ -124,10 +124,10 @@ unsync() {
 }
 
 debug() {
-	echo -en "\E[31m::DEBUG MODE::"
-	tput sgr0 # reset colors to normal
+	echo -en "anything-sync-daemon      \E[31m::DEBUG MODE::"
+	tput sgr0
 	echo
-	echo "anything-sync-daemon version: $ASD_VERS"
+	echo "version: $ASD_VERS"
 	echo
 	echo "settings in /etc/asd.conf will make anything-sync-daemon manage the following dir/user combos when invoked:"
 	echo
@@ -164,8 +164,11 @@ case "$1" in
 		[[ -f $DAEMON_FILE ]] && sync && unsync
 		;;
 	*)
-		echo -en "\E[31musage: "
-		tput sgr0 # reset colors to normal
+    echo -en "anything-sync-daemon      \E[31m::USAGE::"
+    tput sgr0
+    echo
+    echo "version: $ASD_VERS"
+    echo
 		echo "$0 {sync|unsync|debug}"
 		echo "  sync) Force a manual sync."
 		echo "unsync) Force a manual unsync."
