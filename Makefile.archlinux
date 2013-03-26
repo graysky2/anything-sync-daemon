@@ -1,0 +1,56 @@
+VERSION = 3.13
+PN = anything-sync-daemon
+
+PREFIX ?= /usr
+CONFDIR = /etc
+CRONDIR = /etc/cron.hourly
+INITDIR = /usr/lib/systemd/system
+BINDIR = $(PREFIX)/bin
+DOCDIR = $(PREFIX)/share/doc/$(PN)-$(VERSION)
+MANDIR = $(PREFIX)/share/man/man1
+
+RM = rm
+Q = @
+
+all:
+	$(Q)echo -e '\033[1;32mSetting version\033[0m'
+	$(Q)sed -i -e 's/@VERSION@/'$(VERSION)'/' common/$(PN)
+
+install-bin:
+	$(Q)echo -e '\033[1;32mInstalling main script, initd and config...\033[0m'
+	install -Dm644 common/asd.conf "$(DESTDIR)$(CONFDIR)/asd.conf"
+	install -Dm644 init/asd.service "$(DESTDIR)$(INITDIR)/asd.service"
+	install -Dm644 init/asd-resync.service "$(DESTDIR)$(INITDIR)/asd-resync.service"
+	install -Dm644 init/asd-resync.timer "$(DESTDIR)$(INITDIR)/asd-resync.timer"
+	install -Dm755 common/$(PN) "$(DESTDIR)$(BINDIR)/$(PN)"
+	ln -s $(PN) "$(DESTDIR)$(BINDIR)/asd"
+
+install-man:
+	$(Q)echo -e '\033[1;32mInstalling manpage...\033[0m'
+	install -Dm644 doc/asd.1 "$(DESTDIR)$(MANDIR)/asd.1"
+	gzip -9 "$(DESTDIR)$(MANDIR)/asd.1"
+	ln -s asd.1.gz "$(DESTDIR)$(MANDIR)/$(PN).1.gz"
+
+install-cron:
+	$(Q)echo -e '\033[1;32mInstalling cronjob...\033[0m'
+	install -Dm755 common/asd.cron.hourly "$(DESTDIR)$(CRONDIR)/asd-update"
+
+install: install-bin install-man
+
+install-with-cron: install
+	$(Q)echo -e '\033[1;32mInstalling cronjob...\033[0m'
+	install -Dm755 common/asd.cron.hourly "$(DESTDIR)$(CRONDIR)/asd-update"
+
+uninstall:
+	$(Q)$(RM) "$(DESTDIR)$(INITDIR)/asd.service"
+	$(Q)$(RM) "$(DESTDIR)$(INITDIR)/asd-resync.service"
+	$(Q)$(RM) "$(DESTDIR)$(INITDIR)/asd-resync.timer"
+	$(Q)$(RM) "$(DESTDIR)$(BINDIR)/$(PN)"
+	$(Q)$(RM) "$(DESTDIR)$(BINDIR)/asd"
+	$(Q)$(RM) "$(DESTDIR)$(MANDIR)/$(PN).1.gz"
+	$(Q)$(RM) "$(DESTDIR)$(MANDIR)/asd.1.gz"
+	$(Q)if [ -f "$(DESTDIR)$(CRONDIR)/asd-update" ]; then $(RM) "$(DESTDIR)$(CRONDIR)/asd-update"; fi
+	$(Q)echo -e '\033[1;33mIf you want to remove your config as well, run: "make uninstall-conf"\033[0m'
+
+uninstall-conf:
+	$(RM) "$(DESTDIR)$(CONFDIR)/asd.conf"

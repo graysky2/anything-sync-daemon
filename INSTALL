@@ -1,0 +1,32 @@
+BUILDING
+ There is no configure script nor is there anything to compile.
+ Copy or symlink the Makefile.x of your choosing to Makefile.
+
+  $ ln -s Makefile.archlinux Makefile
+
+ * Makefile.archlinux is setup for Archlinux.  
+ * Makefile.ubuntu is setup for Debian/Mint/Ubuntu.
+
+ Setup the via a make.
+
+  $ make
+
+ Running a `make install` as root will distribute the files to
+ the filesystem.
+
+  # make install
+
+ As of v3.13, the Makefiles for systemd-native distros such as 
+ Arch, Exherbo, and Fedora, no longer install the deprecated 
+ cron script using a systemd timer instead. Users may override 
+ and install the  depracated cron script by running make with 
+ `install-with-cron` instead  of `install` at this point.
+
+USE A DISTRO PROVIDED PACKAGE
+ ARCH LINUX
+ Arch Linux users may, use the PKGBUILD in the AUR at this url:
+ https://aur.archlinux.org/packages/anything-sync-daemon
+
+If you wish to contribute to other distros, fork this project
+on github and submit a pull request:
+https://github.com/graysky2/profile-sync-daemon

@@ -1,0 +1,12 @@
+[Unit]
+Description=Timed resync
+After=asd.service
+Wants=asd-resync.timer
+PartOf=asd.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/anything-sync-daemon resync
+
+[Install]
+WantedBy=default.target

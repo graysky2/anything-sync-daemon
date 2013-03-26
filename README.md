@@ -3,4 +3,6 @@ Anything-sync-daemon (asd) is a tiny pseudo-daemon designed to manage user defin
 
 ##Links
 * AUR Package: https://aur.archlinux.org/packages/anything-sync-daemon
-* Wiki: https://wiki.archlinux.org/index.php/Anything-sync-daemon
+
+##Documentation
+Consult the man page or the wiki page: https://wiki.archlinux.org/index.php/Anything-sync-daemon

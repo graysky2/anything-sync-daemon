@@ -1,0 +1,6 @@
+[Unit]
+Description=Timer for Anything-sync-daemon - 1Hour
+PartOf=asd-resync.service asd.service
+
+[Timer]
+OnUnitActiveSec=1h
