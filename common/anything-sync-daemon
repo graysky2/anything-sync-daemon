@@ -192,7 +192,7 @@ case "$1" in
     echo -e " ${BLD} ${NRM}${RED}unsync${NRM}${BLD} Force a manual unsync. Must be run as root user and NOT recommended."${NRM}
     echo
     echo -e " ${BLD}It is ${RED}HIGHLY DISCOURAGED${NRM}${BLD} to directly call $0 to sync or to unsync."${NRM}
-    if [[ -f /usr/lib/systemd/system/psd.service ]]; then
+    if [[ -f /usr/lib/systemd/system/asd.service ]]; then
       echo -e " ${BLD}Instead, use systemd to start/stop anything-sync-daemon."${NRM}
       echo
       echo -e " ${BLD}systemctl ${NRM}${GRN}[option]${NRM}${BLD} asd"${NRM}
@@ -200,10 +200,10 @@ case "$1" in
       echo -e " ${BLD} ${NRM}${GRN}stop${NRM}${BLD}   Turn off daemon; remove symlinks and rotate tmpfs data back to disc."${NRM}
       echo -e " ${BLD} ${NRM}${GRN}enable${NRM}${BLD} Autostart daemon when system comes up."${NRM}
       echo -e " ${BLD} ${NRM}${GRN}disable${NRM}${BLD}  Remove daemon from the list of autostart daemons."${NRM}
-    elif [[ -f /etc/init.d/psd ]]; then
+    elif [[ -f /etc/init.d/asd ]]; then
       echo -e " ${BLD}Instead, use the init system to start/stop anything-sync-daemon."${NRM}
       echo
-      echo -e " ${BLD}sudo service psd ${NRM}${GRN}[option]${NRM}${BLD} or /etc/init.d/asd ${NRM}${GRN}[option]"${NRM}
+      echo -e " ${BLD}sudo service asd ${NRM}${GRN}[option]${NRM}${BLD} or /etc/init.d/asd ${NRM}${GRN}[option]"${NRM}
       echo -e " ${BLD} ${NRM}${GRN}start${NRM}${BLD}  Turn on daemon; make symlinks and actively manage targets in tmpfs."${NRM}
       echo -e " ${BLD} ${NRM}${GRN}stop${NRM}${BLD} Turn off daemon; remove symlinks and rotate tmpfs data back to disc."${NRM}
     fi
