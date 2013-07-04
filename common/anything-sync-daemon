@@ -4,12 +4,16 @@
 export BLD="\e[01m" RED="\e[01;31m" GRN="\e[01;32m" BLU="\e[01;34m" NRM="\e[00m"
 VERS="@VERSION@"
 
+echo -e "${RED}Anything-sync-daemon v$VERS${NRM}"
+echo
+
 # package default
-[[ -f /etc/asd.conf ]] && ASDCONF=${ASDCONF:-"/etc/asd.conf"}
+[[ -f /etc/asd.conf ]] && \
+	ASDCONF=${ASDCONF:-"/etc/asd.conf"}
 
 # nothing to do if there is no conf file
 if [[ ! -f /etc/asd.conf ]]; then
-	echo -e " ${BLD}Cannnot find /etc/asd.conf so bailing. Reinstall package to use anything-sync-daemon."${NRM}
+	echo -e " ${BLD}Cannnot find $ASDCONF so bailing. Reinstall package to use anything-sync-daemon."${NRM}
 	exit 1
 else
 	. $ASDCONF
@@ -21,22 +25,36 @@ if [[ -z "${WHATTOSYNC[0]}" ]]; then
 	exit 1
 fi
 
-[[ -z "$VOLATILE" ]] && VOLATILE="/dev/shm"
+[[ -z "$VOLATILE" ]] && \
+	VOLATILE="/dev/shm"
 
 # these are the permissions that asd will use on the sync targets
 # by default they are private unless the user overrides them in the config
-[[ -z "$PREFIX_PERMISSIONS" ]] && PREFIX_PERMISSIONS=700
+[[ -z "$PREFIX_PERMISSIONS" ]] && \
+	PREFIX_PERMISSIONS=700
 
 # make it overrideable from the commandline / config
 DAEMON_FILE=${DAEMON_FILE:-"/run/asd"}
 
+# make sure the user defined real dirs and crap out if not
+for DIR in "${WHATTOSYNC[@]}"; do
+	if [[ ! -d $DIR ]]; then
+		echo -e "${BLD}Bad entry in your WHATTOSYNC array detected:"${NRM}
+		echo -e "${BLD}${RED}$DIR"${NRM}
+		echo -e "${BLD}Edit ${BLU}$ASDCONF${NRM}${BLD} correcting the mistake and try again."${NRM}
+		exit 1
+	fi
+done
+
 root_check() {
 	# we call this to ensure that only the root user is calling the function
-	# why care? both the sync and unsync functions require root access to /run/asd (the pseudo pid file)
-	# running as unprivileged user will fuck up the sync process resulting in unhappy users
+	# why care? both the sync and unsync functions require root access to
+	# /run/asd (the pseudo pid file)
+	# running as unprivileged user will fuck up the sync process resulting
+	# in unhappy users
 
 	if [[ $EUID -ne 0 ]]; then
-		echo "This function must be called as root!" 1>&2
+		echo -e ${BLD}"This function must be called as root!"${NRM} 1>&2
 		exit 1
 	fi
 }
@@ -45,7 +63,9 @@ check() {
 	root_check
 	local DIR USER BACKUP LINK
 	for DIR in "${WHATTOSYNC[@]}"; do
-		BACKUP="$DIR-backup_asd"  # this is the hdd bound backup in case of power failure
+		# did user define a real dir
+		# this is the hdd bound backup in case of power failure
+		BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
 		if [[ -d "$BACKUP" ]]; then
 			USER=$(stat -c %U "$BACKUP")
 		else
@@ -53,8 +73,8 @@ check() {
 		fi
 		LINK="$VOLATILE/asd-$USER$DIR"
 
-		# if the machine was ungracefully shutdown then the backup will be on the filesystem
-		# and the link to tmpfs will be on the filesystem but the contents will be empty
+		# if ungracefully shutdown, both the backup and the link to tmpfs will
+		# be on the filesystem but the contents to the link  will be empty
 		# we need to simply remove the link and rotate the backup into place
 
 		if [[ -e "$LINK/.flagged" ]]; then
@@ -75,14 +95,16 @@ sync() {
 	# sync to tmpfs and back again
 	local DIR USER GROUP BACKUP LINK
 	for DIR in "${WHATTOSYNC[@]}"; do
-		BACKUP="$DIR-backup_asd"  # this is the hdd bound backup in case of power failure
+		# this is the hdd bound backup in case of power failure
+		BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
 		USER="$(stat -c %U $DIR)"
 		GROUP="$(stat -c %G $DIR)"
 		LINK="$VOLATILE/asd-$USER$DIR"
 
 		# make tmpfs container
 		if [[ -d "$DIR" ]]; then
-			[[ -r "$LINK" ]] || install -dm$PREFIX_PERMISSIONS --owner=$USER --group=$GROUP "$LINK"
+			[[ -r "$LINK" ]] || \
+				install -dm$PREFIX_PERMISSIONS --owner=$USER --group=$GROUP "$LINK"
 
 			# backup target and link to tmpfs container
 			if [[ $(readlink "$DIR") != "$LINK" ]]; then
@@ -93,7 +115,8 @@ sync() {
 
 			# sync the tmpfs targets to the disc
 			if [[ -e $LINK/.flagged ]]; then
-				rsync -aog --delete-after --delay-updates --exclude .flagged "$DIR/" "$BACKUP/"
+				rsync -aog --delete-after --delay-updates \
+					--exclude .flagged "$DIR/" "$BACKUP/"
 			else
 				rsync -aog --delay-updates "$BACKUP/" "$DIR/"
 				touch "$DIR/.flagged"
@@ -108,16 +131,17 @@ unsync() {
 
 	local DIR USER BACKUP LINK
 	for DIR in "${WHATTOSYNC[@]}"; do
-		BACKUP="$DIR-backup_asd"  # this is the hdd bound backup in case of power failure
-		USER="$(stat -c %U $DIR)"		
+		# this is the hdd bound backup in case of power failure
+		BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
+		USER="$(stat -c %U $DIR)"
 		GROUP="$(stat -c %G $DIR)"
 		LINK="$VOLATILE/asd-$USER$DIR"
 
 		# remove link and move data from tmpfs to disk
 		if [[ -h "$DIR" ]]; then
 			unlink "$DIR"
-			#	this assumes that the backup is always updated so be sure to invoke a sync
-			# before an unsync
+			# this assumes that the backup is always
+			# updated so be sure to invoke a sync before an unsync
 			#
 			# restore original dirtree
 			[[ -d "$BACKUP" ]] && mv "$BACKUP" "$DIR"
@@ -128,40 +152,42 @@ unsync() {
 
 debug() {
 	if [[ -z $(sed 's| \\.*$||' /etc/issue | head -n 1) ]]; then
-    echo -e "${RED}Anything-sync-daemon v$VERS"${NRM}
-  else
-    echo -e "${RED}Anything-sync-daemon v$VERS${NRM}${BLD} on $(sed 's| \\.*$||' /etc/issue | head -n 1)."${NRM}
-  fi
+		echo -e "${RED}Anything-sync-daemon v$VERS"${NRM}
+	else
+		echo -e "${RED}Anything-sync-daemon v$VERS${NRM}${BLD} on $(sed 's| \\.*$||' /etc/issue | head -n 1)."${NRM}
+	fi
 
-  echo
-  echo -e "${BLD}Daemon file ${BLU}$DAEMON_FILE${NRM}${BLD} is $([[ -f $DAEMON_FILE ]] && echo present || echo not present)."${NRM}
+	echo
+	echo -e "${BLD}Daemon file ${BLU}$DAEMON_FILE${NRM}${BLD} is $([[ -f $DAEMON_FILE ]] && echo present || echo not present)."${NRM}
 
-  if [[ -f /usr/lib/systemd/system/asd.service ]]; then
-    # running sysmted
-    echo -e "${BLD}Service is currently $(systemctl is-active asd)."${NRM}
-  fi
-  echo
-  echo -e "${BLD}Asd will manage the following per ${BLU}${ASDCONF}${NRM}${BLD} settings:"${NRM}
-  echo
-	
+	if [[ -f /usr/lib/systemd/system/asd.service ]]; then
+		# running sysmted
+		echo -e "${BLD}Service is currently $(systemctl is-active asd)."${NRM}
+	fi
+	echo
+	echo -e "${BLD}Asd will manage the following per ${BLU}${ASDCONF}${NRM}${BLD} settings:"${NRM}
+	echo
+
 	local DIR USER GROUP BACKUP LINK
 	for DIR in "${WHATTOSYNC[@]}"; do
-		BACKUP="$DIR-backup_asd"  # this is the hdd bound backup in case of power failure
+		# this is the hdd bound backup in case of power failure
+		BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
 		USER="$(stat -c %U $DIR)"
 		GROUP="$(stat -c %G $DIR)"
 		LINK="$VOLATILE/asd-$USER$DIR"
-		psize=$(du -Lh --max-depth=0 $DIR 2>/dev/null | awk '{ print $1 }') # profile dir size
+		# profile dir size
+		psize=$(du -Lh --max-depth=0 $DIR 2>/dev/null | awk '{ print $1 }')
 		if [[ -d "$DIR" ]]; then
 			echo -en " ${BLD}target to manage:"
 			echo -e "$(tput cr)$(tput cuf 20) $DIR"${NRM}
-      echo -en " ${BLD}owner/group:"    
-      echo -e "$(tput cr)$(tput cuf 20) $USER/$GROUP"${NRM} 
+			echo -en " ${BLD}owner/group:"
+			echo -e "$(tput cr)$(tput cuf 20) $USER/$GROUP"${NRM}
 			echo -en " ${BLD}sync target:"
 			echo -e "$(tput cr)$(tput cuf 20) ${BLU}$BACKUP"${NRM}
 			echo -en " ${BLD}tmpfs target:"
 			echo -e "$(tput cr)$(tput cuf 20) ${RED}$LINK"${NRM}
-      echo -en " ${BLD}dir size:"
-      echo -e "$(tput cr)$(tput cuf 20) $psize"${NRM} 
+			echo -en " ${BLD}dir size:"
+			echo -e "$(tput cr)$(tput cuf 20) $psize"${NRM}
 			echo
 		fi
 	done
@@ -183,30 +209,28 @@ case "$1" in
 		[[ -f $DAEMON_FILE ]] && sync && unsync
 		;;
 	*)
-    echo -e "${RED}Anything-sync-daemon v$VERS${NRM}"
-    echo
-    echo -e " ${BLD}$0 ${NRM}${GRN}[option]${NRM}"
-    echo -e " ${BLD} ${NRM}${GRN}preview${NRM}${BLD}  Parse config file (${NRM}${BLU}${ASDCONF}${NRM}${BLD}) to see what will be managed."${NRM}
-    echo -e " ${BLD} ${NRM}${GRN}resync${NRM}${BLD} Synchronize the tmpfs and media bound copy. Must be run as root user."${NRM}
-    echo -e " ${BLD} ${NRM}${RED}sync${NRM}${BLD}   Force a manual sync. Must be run as root user and NOT recommended."${NRM}
-    echo -e " ${BLD} ${NRM}${RED}unsync${NRM}${BLD} Force a manual unsync. Must be run as root user and NOT recommended."${NRM}
-    echo
-    echo -e " ${BLD}It is ${RED}HIGHLY DISCOURAGED${NRM}${BLD} to directly call $0 to sync or to unsync."${NRM}
-    if [[ -f /usr/lib/systemd/system/asd.service ]]; then
-      echo -e " ${BLD}Instead, use systemd to start/stop anything-sync-daemon."${NRM}
-      echo
-      echo -e " ${BLD}systemctl ${NRM}${GRN}[option]${NRM}${BLD} asd"${NRM}
-      echo -e " ${BLD} ${NRM}${GRN}start${NRM}${BLD}    Turn on daemon; make symlinks and actively manage targets in tmpfs."${NRM}
-      echo -e " ${BLD} ${NRM}${GRN}stop${NRM}${BLD}   Turn off daemon; remove symlinks and rotate tmpfs data back to disc."${NRM}
-      echo -e " ${BLD} ${NRM}${GRN}enable${NRM}${BLD} Autostart daemon when system comes up."${NRM}
-      echo -e " ${BLD} ${NRM}${GRN}disable${NRM}${BLD}  Remove daemon from the list of autostart daemons."${NRM}
-    elif [[ -f /etc/init.d/asd ]]; then
-      echo -e " ${BLD}Instead, use the init system to start/stop anything-sync-daemon."${NRM}
-      echo
-      echo -e " ${BLD}sudo service asd ${NRM}${GRN}[option]${NRM}${BLD} or /etc/init.d/asd ${NRM}${GRN}[option]"${NRM}
-      echo -e " ${BLD} ${NRM}${GRN}start${NRM}${BLD}  Turn on daemon; make symlinks and actively manage targets in tmpfs."${NRM}
-      echo -e " ${BLD} ${NRM}${GRN}stop${NRM}${BLD} Turn off daemon; remove symlinks and rotate tmpfs data back to disc."${NRM}
-    fi
-    ;;
+		echo -e " ${BLD}$0 ${NRM}${GRN}[option]${NRM}"
+		echo -e " ${BLD} ${NRM}${GRN}preview${NRM}${BLD}  Parse config file (${NRM}${BLU}${ASDCONF}${NRM}${BLD}) to see what will be managed."${NRM}
+		echo -e " ${BLD} ${NRM}${GRN}resync${NRM}${BLD} Synchronize the tmpfs and media bound copy. Must be run as root user."${NRM}
+		echo -e " ${BLD} ${NRM}${RED}sync${NRM}${BLD}   Force a manual sync. Must be run as root user and NOT recommended."${NRM}
+		echo -e " ${BLD} ${NRM}${RED}unsync${NRM}${BLD} Force a manual unsync. Must be run as root user and NOT recommended."${NRM}
+		echo
+		echo -e " ${BLD}It is ${RED}HIGHLY DISCOURAGED${NRM}${BLD} to directly call $0 to sync or to unsync."${NRM}
+		if [[ -f /usr/lib/systemd/system/asd.service ]]; then
+			echo -e " ${BLD}Instead, use systemd to start/stop anything-sync-daemon."${NRM}
+			echo
+			echo -e " ${BLD}systemctl ${NRM}${GRN}[option]${NRM}${BLD} asd"${NRM}
+			echo -e " ${BLD} ${NRM}${GRN}start${NRM}${BLD}    Turn on daemon; make symlinks and actively manage targets in tmpfs."${NRM}
+			echo -e " ${BLD} ${NRM}${GRN}stop${NRM}${BLD}   Turn off daemon; remove symlinks and rotate tmpfs data back to disc."${NRM}
+			echo -e " ${BLD} ${NRM}${GRN}enable${NRM}${BLD} Autostart daemon when system comes up."${NRM}
+			echo -e " ${BLD} ${NRM}${GRN}disable${NRM}${BLD}  Remove daemon from the list of autostart daemons."${NRM}
+		elif [[ -f /etc/init.d/asd ]]; then
+			echo -e " ${BLD}Instead, use the init system to start/stop anything-sync-daemon."${NRM}
+			echo
+			echo -e " ${BLD}sudo service asd ${NRM}${GRN}[option]${NRM}${BLD} or /etc/init.d/asd ${NRM}${GRN}[option]"${NRM}
+			echo -e " ${BLD} ${NRM}${GRN}start${NRM}${BLD}  Turn on daemon; make symlinks and actively manage targets in tmpfs."${NRM}
+			echo -e " ${BLD} ${NRM}${GRN}stop${NRM}${BLD} Turn off daemon; remove symlinks and rotate tmpfs data back to disc."${NRM}
+		fi
+		;;
 esac
 exit 0

@@ -1,3 +1,8 @@
+v3.15
+03-Jul-2013
+Prefix sync target with a period for a cleaner look on the file system.
+Minor cosmetic changes in script.
+
 v3.14
 18-Apr-2013
 Fixed typos in script (go2null).
