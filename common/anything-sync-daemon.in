@@ -1,11 +1,16 @@
 #!/bin/bash
+
+#
 # By graysky <graysky AT archlinux DOT us>
 # Inspired by some code originally  written by Colin Verot
-export BLD="\e[01m" RED="\e[01;31m" GRN="\e[01;32m" BLU="\e[01;34m" NRM="\e[00m"
-VERS="@VERSION@"
+#
 
-echo -e "${RED}Anything-sync-daemon v$VERS${NRM}"
-echo
+export BLD="\e[01m" \
+	RED="\e[01;31m" \
+	GRN="\e[01;32m" \
+	BLU="\e[01;34m" \
+	NRM="\e[00m"
+VERS="@VERSION@"
 
 # package default
 [[ -f /etc/asd.conf ]] && \
@@ -13,7 +18,8 @@ echo
 
 # nothing to do if there is no conf file
 if [[ ! -f /etc/asd.conf ]]; then
-	echo -e " ${BLD}Cannnot find $ASDCONF so bailing. Reinstall package to use anything-sync-daemon."${NRM}
+	echo -e " ${BLD}Cannnot find $ASDCONF so bailing."${NRM}
+	echo -e " ${BLD}Reinstall package to use anything-sync-daemon."${NRM}
 	exit 1
 else
 	. $ASDCONF
