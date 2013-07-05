@@ -45,10 +45,13 @@ DAEMON_FILE=${DAEMON_FILE:-"/run/asd"}
 # make sure the user defined real dirs and crap out if not
 for DIR in "${WHATTOSYNC[@]}"; do
 	if [[ ! -d $DIR ]]; then
-		echo -e "${BLD}Bad entry in your WHATTOSYNC array detected:"${NRM}
-		echo -e "${BLD}${RED}$DIR"${NRM}
-		echo -e "${BLD}Edit ${BLU}$ASDCONF${NRM}${BLD} correcting the mistake and try again."${NRM}
-		exit 1
+		BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
+		if [[ ! -d $BACKUP ]]; then
+			echo -e "${BLD}Bad entry in your WHATTOSYNC array detected:"${NRM}
+			echo -e "${BLD}${RED}$DIR"${NRM}
+			echo -e "${BLD}Edit ${BLU}$ASDCONF${NRM}${BLD} correcting the mistake and try again."${NRM}
+			exit 1
+		fi
 	fi
 done
 

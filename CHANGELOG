@@ -1,4 +1,8 @@
-v3.15
+v3.17
+05-Jul-2013
+Fixed bug related to new check while parsing config file.
+
+v3.16
 04-Jul-2013
 One Makefile to rule them all... support for both systemd and upstart.
 
