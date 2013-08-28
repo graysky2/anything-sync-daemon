@@ -1,3 +1,7 @@
+v3.18
+28-Aug-2013
+Use group id rather than group name for ownership.
+
 v3.17
 05-Jul-2013
 Fixed bug related to new check while parsing config file.

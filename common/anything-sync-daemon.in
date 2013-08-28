@@ -107,7 +107,7 @@ sync() {
 		# this is the hdd bound backup in case of power failure
 		BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
 		USER="$(stat -c %U $DIR)"
-		GROUP="$(stat -c %G $DIR)"
+		GROUP="$(id -g $USER)"
 		LINK="$VOLATILE/asd-$USER$DIR"
 
 		# make tmpfs container
@@ -143,7 +143,7 @@ unsync() {
 		# this is the hdd bound backup in case of power failure
 		BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
 		USER="$(stat -c %U $DIR)"
-		GROUP="$(stat -c %G $DIR)"
+		GROUP="$(id -g $USER)"
 		LINK="$VOLATILE/asd-$USER$DIR"
 
 		# remove link and move data from tmpfs to disk
@@ -182,7 +182,7 @@ debug() {
 		# this is the hdd bound backup in case of power failure
 		BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
 		USER="$(stat -c %U $DIR)"
-		GROUP="$(stat -c %G $DIR)"
+		GROUP="$(id -g $USER)"
 		LINK="$VOLATILE/asd-$USER$DIR"
 		# profile dir size
 		psize=$(du -Lh --max-depth=0 $DIR 2>/dev/null | awk '{ print $1 }')
