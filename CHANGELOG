@@ -1,3 +1,7 @@
+v3.19
+29-Aug-2013
+Modified service file for windindd support.
+
 v3.18
 28-Aug-2013
 Use group id rather than group name for ownership.
