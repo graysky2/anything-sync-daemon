@@ -17,7 +17,7 @@ BUILDING
  As of v3.13, the Makefiles for systemd-native distros such as
  Arch, Exherbo, and Fedora, no longer install the deprecated
  cron script using a systemd timer instead. Users may override
- and install the  depracated cron script by running make with
+ and install the deprecated cron script by running make with
  `install-with-cron` instead  of `install` at this point.
 
 USE A DISTRO PROVIDED PACKAGE

@@ -18,7 +18,7 @@ VERS="@VERSION@"
 
 # nothing to do if there is no conf file
 if [[ ! -f /etc/asd.conf ]]; then
-	echo -e " ${BLD}Cannnot find $ASDCONF so bailing."${NRM}
+	echo -e " ${BLD}Cannot find $ASDCONF so bailing."${NRM}
 	echo -e " ${BLD}Reinstall package to use anything-sync-daemon."${NRM}
 	exit 1
 else
@@ -39,7 +39,7 @@ fi
 [[ -z "$PREFIX_PERMISSIONS" ]] && \
 	PREFIX_PERMISSIONS=700
 
-# make it overrideable from the commandline / config
+# make it overridable from the commandline / config
 DAEMON_FILE=${DAEMON_FILE:-"/run/asd"}
 
 # make sure the user defined real dirs and crap out if not
@@ -170,7 +170,7 @@ debug() {
 	echo -e "${BLD}Daemon file ${BLU}$DAEMON_FILE${NRM}${BLD} is $([[ -f $DAEMON_FILE ]] && echo present || echo not present)."${NRM}
 
 	if [[ -f /usr/lib/systemd/system/asd.service ]]; then
-		# running sysmted
+		# running systemd
 		echo -e "${BLD}Service is currently $(systemctl is-active asd)."${NRM}
 	fi
 	echo
@@ -189,7 +189,7 @@ debug() {
 		if [[ -d "$DIR" ]]; then
 			echo -en " ${BLD}target to manage:"
 			echo -e "$(tput cr)$(tput cuf 20) $DIR"${NRM}
-			echo -en " ${BLD}owner/group:"
+			echo -en " ${BLD}owner/group id:"
 			echo -e "$(tput cr)$(tput cuf 20) $USER/$GROUP"${NRM}
 			echo -en " ${BLD}sync target:"
 			echo -e "$(tput cr)$(tput cuf 20) ${BLU}$BACKUP"${NRM}
