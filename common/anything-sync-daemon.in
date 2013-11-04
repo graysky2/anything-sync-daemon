@@ -219,7 +219,7 @@ case "$1" in
 		;;
 	*)
 		echo -e " ${BLD}$0 ${NRM}${GRN}[option]${NRM}"
-		echo -e " ${BLD} ${NRM}${GRN}preview${NRM}${BLD}  Parse config file (${NRM}${BLU}${ASDCONF}${NRM}${BLD}) to see what will be managed."${NRM}
+		echo -e " ${BLD} ${NRM}${GRN}debug${NRM}${BLD}  Parse config file (${NRM}${BLU}${ASDCONF}${NRM}${BLD}) to see what will be managed."${NRM}
 		echo -e " ${BLD} ${NRM}${GRN}resync${NRM}${BLD} Synchronize the tmpfs and media bound copy. Must be run as root user."${NRM}
 		echo -e " ${BLD} ${NRM}${RED}sync${NRM}${BLD}   Force a manual sync. Must be run as root user and NOT recommended."${NRM}
 		echo -e " ${BLD} ${NRM}${RED}unsync${NRM}${BLD} Force a manual unsync. Must be run as root user and NOT recommended."${NRM}
