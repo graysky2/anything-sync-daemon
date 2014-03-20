@@ -9,7 +9,7 @@ To build from source, see the included INSTALL text document.
 
 ##Installation from Distro Packages
 * ![logo](http://www.monitorix.org/imgs/archlinux.png "arch logo")Arch: in the [AUR](https://aur.archlinux.org/packages/anything-sync-daemon).
-* ![logo](http://chakra-linux.org/img/icon/chakra-kde_32.png "chakra logo")Chakra: in the [CCR](http://chakra-linux.org/ccr/packages.php?ID=3750).
+* ![logo](http://s18.postimg.org/w5jvz71mt/chakra.jpg "chakra logo")Chakra: in the [CCR](http://chakraos.org/ccr/packages.php?ID=3750).
 
 ##WARNING
 Users of versions older than v3.15 MUST stop asd before upgrading. Data loss can occur if you ignore this warning.
