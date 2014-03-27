@@ -32,7 +32,7 @@ fi
 
 # nothing to do if these are empty
 if [[ -z "${WHATTOSYNC[0]}" ]]; then
-	echo "Must define at least one directory in the WHATTOSYNC array in $ASDCONF"
+	echo -e " ${BLD}Must define at least one directory in ${NRM}${BLU}$ASDCONF"${NRM}
 	exit 1
 fi
 
@@ -174,17 +174,28 @@ do_unsync() {
 
 debug() {
 	if [[ -z $(sed 's| \\.*$||' /etc/issue | head -n 1) ]]; then
-		echo -e "${RED}Anything-sync-daemon v$VERS"${NRM}
+		echo -e "${BLD}Anything-sync-daemon v$VERS"${NRM}
 	else
-		echo -e "${RED}Anything-sync-daemon v$VERS${NRM}${BLD} on $(sed 's| \\.*$||' /etc/issue | head -n 1)."${NRM}
+		echo -e "${BLD}Anything-sync-daemon v$VERS${NRM}${BLD} on $(sed 's| \\.*$||' /etc/issue | head -n 1)."${NRM}
 	fi
 
 	echo
-	echo -e "${BLD}Daemon file ${BLU}$DAEMON_FILE${NRM}${BLD} is $([[ -f $DAEMON_FILE ]] && echo present || echo not present)."${NRM}
-
 	if [[ -f /usr/lib/systemd/system/asd.service ]]; then
 		# running systemd
-		echo -e "${BLD}Service is currently $(systemctl is-active asd)."${NRM}
+		asd_state=$(systemctl is-active asd)
+		resync_state=$(systemctl is-active asd-resync.timer)
+		[[ "$asd_state" = "active" ]] && asd_color="${GRN}" || asd_color="${RED}"
+		[[ "$resync_state" = "active" ]] && resync_color="${GRN}" || resync_color="${RED}"
+
+		echo -e " ${BLD}Systemd service is currently ${asd_color}$asd_state${NRM}${BLD}."${NRM}
+		echo -e " ${BLD}Systemd resync service is currently ${resync_color}$resync_state${NRM}${BLD}."${NRM}
+	else
+		# using other init system + cron job for resync
+		[[ -x /etc/cron.hourly/asd-update ]] && resync_state="present" || resync_state="not present"
+		[[ "$resync_state" = "present" ]] && resync_color=${GRN} || resync_color=${RED}
+		echo -e " ${BLD}Daemon pid file is $([[ -f $DAEMON_FILE ]] && \
+			echo -e ${GRN}present${NRM}${BLD} || echo -e ${RED}not present${NRM}${BLD})."${NRM}
+		echo -e " ${BLD}Resync cronjob is ${resync_color}${resync_state}${NRM}${BLD}."${NRM}
 	fi
 	echo
 	echo -e "${BLD}Asd will manage the following per ${BLU}${ASDCONF}${NRM}${BLD} settings:"${NRM}
@@ -200,10 +211,10 @@ debug() {
 		# profile dir size
 		psize=$(du -Lh --max-depth=0 $DIR 2>/dev/null | awk '{ print $1 }')
 		if [[ -d "$DIR" ]]; then
-			echo -en " ${BLD}target to manage:"
-			echo -e "$(tput cr)$(tput cuf 20) $DIR"${NRM}
 			echo -en " ${BLD}owner/group id:"
 			echo -e "$(tput cr)$(tput cuf 20) $USER/$GROUP"${NRM}
+			echo -en " ${BLD}target to manage:"
+			echo -e "$(tput cr)$(tput cuf 20) ${GRN}$DIR"${NRM}
 			echo -en " ${BLD}sync target:"
 			echo -e "$(tput cr)$(tput cuf 20) ${BLU}$BACKUP"${NRM}
 			echo -en " ${BLD}tmpfs target:"
@@ -231,8 +242,10 @@ case "$1" in
 		[[ -f $DAEMON_FILE ]] && do_sync && do_unsync
 		;;
 	*)
+		echo -e "${RED}Anything-sync-daemon v$VERS${NRM}"
+		echo
 		echo -e " ${BLD}$0 ${NRM}${GRN}[option]${NRM}"
-		echo -e " ${BLD} ${NRM}${GRN}debug${NRM}${BLD}  Parse config file (${NRM}${BLU}${ASDCONF}${NRM}${BLD}) to see what will be managed."${NRM}
+		echo -e " ${BLD} ${NRM}${GRN}preview${NRM}${BLD}  Parse config file (${NRM}${BLU}${ASDCONF}${NRM}${BLD}) to see what will be managed."${NRM}
 		echo -e " ${BLD} ${NRM}${GRN}resync${NRM}${BLD} Synchronize the tmpfs and media bound copy. Must be run as root user."${NRM}
 		echo -e " ${BLD} ${NRM}${RED}sync${NRM}${BLD}   Force a manual sync. Must be run as root user and NOT recommended."${NRM}
 		echo -e " ${BLD} ${NRM}${RED}unsync${NRM}${BLD} Force a manual unsync. Must be run as root user and NOT recommended."${NRM}
@@ -241,7 +254,7 @@ case "$1" in
 		if [[ -f /usr/lib/systemd/system/asd.service ]]; then
 			echo -e " ${BLD}Instead, use systemd to start/stop anything-sync-daemon."${NRM}
 			echo
-			echo -e " ${BLD}systemctl ${NRM}${GRN}[option]${NRM}${BLD} asd"${NRM}
+			echo -e " ${BLD}systemctl ${NRM}${GRN}[option]${NRM}${BLD} asd asd-resync"${NRM}
 			echo -e " ${BLD} ${NRM}${GRN}start${NRM}${BLD}    Turn on daemon; make symlinks and actively manage targets in tmpfs."${NRM}
 			echo -e " ${BLD} ${NRM}${GRN}stop${NRM}${BLD}   Turn off daemon; remove symlinks and rotate tmpfs data back to disc."${NRM}
 			echo -e " ${BLD} ${NRM}${GRN}enable${NRM}${BLD} Autostart daemon when system comes up."${NRM}
