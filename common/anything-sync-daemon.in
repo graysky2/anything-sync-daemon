@@ -19,11 +19,10 @@ DAEMON_FILE=${DAEMON_FILE:-"/run/asd"}
 if [[ -f /etc/asd.conf ]]; then
 	. $ASDCONF
 else
-	# nothing to do if there is no conf file
 	echo -e " ${BLD}Cannot find $ASDCONF so bailing."${NRM}
 	echo -e " ${BLD}Reinstall package to use anything-sync-daemon."${NRM}
 	exit 1
-if
+fi
 
 # if asd is active, source the snapshot of /etc/psd.conf preferentially
 if [[ -f "${DAEMON_FILE}.conf" ]]; then
@@ -41,8 +40,7 @@ fi
 
 # these are the permissions that asd will use on the sync targets
 # by default they are private unless the user overrides them in the config
-[[ -z "$PREFIX_PERMISSIONS" ]] && \
-	PREFIX_PERMISSIONS=700
+[[ -z "$PREFIX_PERMISSIONS" ]] && PREFIX_PERMISSIONS=700
 
 # make sure the user defined real dirs and crap out if not
 for DIR in "${WHATTOSYNC[@]}"; do
@@ -70,12 +68,12 @@ root_check() {
 }
 
 dep_check() {
-  # Function is used to insure all dependencies are installed
-  command -v rsync >/dev/null 2>&1 || {
-    echo "I require rsync but it's not installed. Aborting." >&2
-    exit 1; }
-  command -v awk >/dev/null 2>&1 || {
-    echo "I require awk but it's not installed. Aborting." >&2; exit 1; }
+	# Function is used to insure all dependencies are installed
+	command -v rsync >/dev/null 2>&1 || {
+	echo "I require rsync but it's not installed. Aborting." >&2
+	exit 1; }
+	command -v awk >/dev/null 2>&1 || {
+	echo "I require awk but it's not installed. Aborting." >&2; exit 1; }
 }
 
 check() {
@@ -110,7 +108,7 @@ check() {
 do_sync() {
 	root_check
 	touch "$DAEMON_FILE"
-	
+
 	# make a snapshot of /etc/psd.conf and redefine its location to tmpfs while
 	# psd is running to keep any edits made to the live /etc/psd.conf from
 	# potentially orphaning the tmpfs copies thus preserving the data
