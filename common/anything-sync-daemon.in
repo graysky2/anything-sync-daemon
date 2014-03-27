@@ -107,7 +107,7 @@ check() {
 	done
 }
 
-sync() {
+do_sync() {
 	root_check
 	touch "$DAEMON_FILE"
 	
@@ -139,19 +139,19 @@ sync() {
 
 			# sync the tmpfs targets to the disc
 			if [[ -e "$LINK"/.flagged ]]; then
-				rsync -aog --delete-after --delay-updates \
-					--exclude .flagged "$DIR/" "$BACKUP/"
+				rsync -aog --delete-after --inplace --no-whole-file	--exclude .flagged "$DIR/" "$BACKUP/"
 			else
-				rsync -aog --delay-updates "$BACKUP/" "$DIR/"
+				# initial sync
+				rsync -aog --inplace --no-whole-file "$BACKUP/" "$DIR/"
 				touch "$DIR/.flagged"
 			fi
 		fi
 	done
 }
 
-unsync() {
+do_unsync() {
 	root_check
-	rm -f "$DAEMON_FILE"
+	rm -f "$DAEMON_FILE" "${DAEMON_FILE}.conf"
 
 	local DIR USER BACKUP LINK
 	for DIR in "${WHATTOSYNC[@]}"; do
@@ -223,14 +223,14 @@ case "$1" in
 		;;
 	sync)
 		[[ ! -f $DAEMON_FILE ]] && check
-		sync
+		do_sync
 		;;
 	resync)
-		[[ -f $DAEMON_FILE ]] && sync
+		[[ -f $DAEMON_FILE ]] && do_sync
 		;;
 	unsync)
 		# make sure the daemon ran to setup the links
-		[[ -f $DAEMON_FILE ]] && sync && unsync
+		[[ -f $DAEMON_FILE ]] && do_sync && do_unsync
 		;;
 	*)
 		echo -e " ${BLD}$0 ${NRM}${GRN}[option]${NRM}"
@@ -258,3 +258,5 @@ case "$1" in
 		;;
 esac
 exit 0
+
+#vim:set ts=2 sw=2 et:
