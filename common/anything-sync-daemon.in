@@ -1,8 +1,8 @@
 #!/bin/bash
 
 #
-# By graysky <graysky AT archlinux DOT us>
-# Inspired by some code originally  written by Colin Verot
+# Anything-sync-deamon by graysky <graysky AT archlinux DOT us>
+# Inspired by some code originally written by Colin Verot
 #
 
 export BLD="\e[01m" \
@@ -12,16 +12,22 @@ export BLD="\e[01m" \
 	NRM="\e[00m"
 VERS="@VERSION@"
 
-# package default
-[[ -f /etc/asd.conf ]] && \
-	ASDCONF=${ASDCONF:-"/etc/asd.conf"}
+ASDCONF=${ASDCONF:-"/etc/asd.conf"}
+DAEMON_FILE=${DAEMON_FILE:-"/run/asd"}
 
-# nothing to do if there is no conf file
-if [[ ! -f /etc/asd.conf ]]; then
+# Setup check /etc/asd.conf
+if [[ -f /etc/asd.conf ]]; then
+	. $ASDCONF
+else
+	# nothing to do if there is no conf file
 	echo -e " ${BLD}Cannot find $ASDCONF so bailing."${NRM}
 	echo -e " ${BLD}Reinstall package to use anything-sync-daemon."${NRM}
 	exit 1
-else
+if
+
+# if asd is active, source the snapshot of /etc/psd.conf preferentially
+if [[ -f "${DAEMON_FILE}.conf" ]]; then
+	ASDCONF="${DAEMON_FILE}.conf"
 	. $ASDCONF
 fi
 
@@ -31,16 +37,12 @@ if [[ -z "${WHATTOSYNC[0]}" ]]; then
 	exit 1
 fi
 
-[[ -z "$VOLATILE" ]] && \
-	VOLATILE="/dev/shm"
+[[ -z "$VOLATILE" ]] && VOLATILE="/dev/shm"
 
 # these are the permissions that asd will use on the sync targets
 # by default they are private unless the user overrides them in the config
 [[ -z "$PREFIX_PERMISSIONS" ]] && \
 	PREFIX_PERMISSIONS=700
-
-# make it overridable from the commandline / config
-DAEMON_FILE=${DAEMON_FILE:-"/run/asd"}
 
 # make sure the user defined real dirs and crap out if not
 for DIR in "${WHATTOSYNC[@]}"; do
@@ -56,19 +58,28 @@ for DIR in "${WHATTOSYNC[@]}"; do
 done
 
 root_check() {
-	# we call this to ensure that only the root user is calling the function
-	# why care? both the sync and unsync functions require root access to
-	# /run/asd (the pseudo pid file)
-	# running as unprivileged user will fuck up the sync process resulting
-	# in unhappy users
+	# we call this to ensure that only the root user is calling the
+	# function why care? both the sync and unsync functions require
+	# root access to $DAEMON_FILE Running as unprivileged user will
+	# fuck up the sync process resulting in unhappy users
 
 	if [[ $EUID -ne 0 ]]; then
-		echo -e ${BLD}"This function must be called as root!"${NRM} 1>&2
+		echo -e " ${BLD}This function must be called as root!"${NRM} 1>&2
 		exit 1
 	fi
 }
 
+dep_check() {
+  # Function is used to insure all dependencies are installed
+  command -v rsync >/dev/null 2>&1 || {
+    echo "I require rsync but it's not installed. Aborting." >&2
+    exit 1; }
+  command -v awk >/dev/null 2>&1 || {
+    echo "I require awk but it's not installed. Aborting." >&2; exit 1; }
+}
+
 check() {
+	dep_check
 	root_check
 	local DIR USER BACKUP LINK
 	for DIR in "${WHATTOSYNC[@]}"; do
@@ -98,8 +109,12 @@ check() {
 
 sync() {
 	root_check
-
 	touch "$DAEMON_FILE"
+	
+	# make a snapshot of /etc/psd.conf and redefine its location to tmpfs while
+	# psd is running to keep any edits made to the live /etc/psd.conf from
+	# potentially orphaning the tmpfs copies thus preserving the data
+	[[ ! -f "${DAEMON_FILE}.conf" ]] && cp "$ASDCONF" "${DAEMON_FILE}.conf"
 
 	# sync to tmpfs and back again
 	local DIR USER GROUP BACKUP LINK
@@ -112,7 +127,7 @@ sync() {
 
 		# make tmpfs container
 		if [[ -d "$DIR" ]]; then
-			[[ -r "$LINK" ]] || \
+			[[ -r "$LINK" ]] ||
 				install -dm$PREFIX_PERMISSIONS --owner=$USER --group=$GROUP "$LINK"
 
 			# backup target and link to tmpfs container
@@ -123,7 +138,7 @@ sync() {
 			fi
 
 			# sync the tmpfs targets to the disc
-			if [[ -e $LINK/.flagged ]]; then
+			if [[ -e "$LINK"/.flagged ]]; then
 				rsync -aog --delete-after --delay-updates \
 					--exclude .flagged "$DIR/" "$BACKUP/"
 			else
