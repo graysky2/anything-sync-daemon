@@ -137,7 +137,7 @@ do_sync() {
 
 			# sync the tmpfs targets to the disc
 			if [[ -e "$LINK"/.flagged ]]; then
-				rsync -aog --delete-after --inplace --no-whole-file	--exclude .flagged "$DIR/" "$BACKUP/"
+				rsync -aog --delete-after --inplace --no-whole-file --exclude .flagged "$DIR/" "$BACKUP/"
 			else
 				# initial sync
 				rsync -aog --inplace --no-whole-file "$BACKUP/" "$DIR/"
@@ -193,7 +193,7 @@ debug() {
 		# using other init system + cron job for resync
 		[[ -x /etc/cron.hourly/asd-update ]] && resync_state="present" || resync_state="not present"
 		[[ "$resync_state" = "present" ]] && resync_color=${GRN} || resync_color=${RED}
-		echo -e " ${BLD}Daemon pid file is $([[ -f $DAEMON_FILE ]] && \
+		echo -e " ${BLD}Daemon pid file is $([[ -f $DAEMON_FILE ]] &&
 			echo -e ${GRN}present${NRM}${BLD} || echo -e ${RED}not present${NRM}${BLD})."${NRM}
 		echo -e " ${BLD}Resync cronjob is ${resync_color}${resync_state}${NRM}${BLD}."${NRM}
 	fi
@@ -242,7 +242,7 @@ case "$1" in
 		[[ -f $DAEMON_FILE ]] && do_sync && do_unsync
 		;;
 	*)
-		echo -e "${RED}Anything-sync-daemon v$VERS${NRM}"
+		echo -e "${BLD}Anything-sync-daemon v$VERS${NRM}"
 		echo
 		echo -e " ${BLD}$0 ${NRM}${GRN}[option]${NRM}"
 		echo -e " ${BLD} ${NRM}${GRN}preview${NRM}${BLD}  Parse config file (${NRM}${BLU}${ASDCONF}${NRM}${BLD}) to see what will be managed."${NRM}
