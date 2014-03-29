@@ -26,8 +26,6 @@ WARNING -- Do NOT change anything in /etc/asd.conf while asd is running since da
 At a minimum, define the target directory/directories to be managed by asd in the WHATTOSYNC array. Syntax below.
 .IP \(bu 3
 Optionally uncomment and define the location of your distro's tmpfs. Do this in the VOLATILE variable.
-.IP \(bu 3
-Optionally redefine the permissions of the link in tmpfs. The default is 700 to protect privacy of users.
 .PP
 The default value of "/dev/shm" should work just fine for the VOLATILE setting. Be sure to read the warning about using software such as bleachbit with asd since bleachbit likes to remove files stored in /tmp. This is why a value of /dev/shm is recommended.
 .RE
