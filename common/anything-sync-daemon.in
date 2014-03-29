@@ -24,7 +24,7 @@ else
 	exit 1
 fi
 
-# if asd is active, source the snapshot of /etc/psd.conf preferentially
+# if asd is active, source the snapshot of /etc/asd.conf preferentially
 if [[ -f "${DAEMON_FILE}.conf" ]]; then
 	ASDCONF="${DAEMON_FILE}.conf"
 	. $ASDCONF
@@ -109,8 +109,8 @@ do_sync() {
 	root_check
 	touch "$DAEMON_FILE"
 
-	# make a snapshot of /etc/psd.conf and redefine its location to tmpfs while
-	# psd is running to keep any edits made to the live /etc/psd.conf from
+	# make a snapshot of /etc/asd.conf and redefine its location to tmpfs while
+	# asd is running to keep any edits made to the live /etc/asd.conf from
 	# potentially orphaning the tmpfs copies thus preserving the data
 	[[ ! -f "${DAEMON_FILE}.conf" ]] && cp "$ASDCONF" "${DAEMON_FILE}.conf"
 
