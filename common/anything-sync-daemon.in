@@ -17,7 +17,7 @@ DAEMON_FILE=${DAEMON_FILE:-"/run/asd"}
 
 # Setup check /etc/asd.conf
 if [[ -f /etc/asd.conf ]]; then
-	. $ASDCONF
+	. "$ASDCONF"
 else
 	echo -e " ${BLD}Cannot find $ASDCONF so bailing."${NRM}
 	echo -e " ${BLD}Reinstall package to use anything-sync-daemon."${NRM}
@@ -27,7 +27,7 @@ fi
 # if asd is active, source the snapshot of /etc/asd.conf preferentially
 if [[ -f "${DAEMON_FILE}.conf" ]]; then
 	ASDCONF="${DAEMON_FILE}.conf"
-	. $ASDCONF
+	. "$ASDCONF"
 fi
 
 # nothing to do if these are empty
@@ -36,13 +36,13 @@ if [[ -z "${WHATTOSYNC[0]}" ]]; then
 	exit 1
 fi
 
-[[ -z "$VOLATILE" ]] && VOLATILE="/dev/shm"
+[[ -z "$VOLATILE" ]] && VOLATILE=/dev/shm
 
 # make sure the user defined real dirs and crap out if not
 for DIR in "${WHATTOSYNC[@]}"; do
-	if [[ ! -d $DIR ]]; then
+	if [[ ! -d "$DIR" ]]; then
 		BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
-		if [[ ! -d $BACKUP ]]; then
+		if [[ ! -d "$BACKUP" ]]; then
 			echo -e "${BLD}Bad entry in your WHATTOSYNC array detected:"${NRM}
 			echo -e "${BLD}${RED}$DIR"${NRM}
 			echo -e "${BLD}Edit ${BLU}$ASDCONF${NRM}${BLD} correcting the mistake and try again."${NRM}
@@ -91,7 +91,7 @@ check() {
 		# be on the filesystem but the contents to the link  will be empty
 		# we need to simply remove the link and rotate the backup into place
 
-		if [[ -e "$LINK/.flagged" ]]; then
+		if [[ -e "$LINK"/.flagged ]]; then
 			# all is well so continue
 			/bin/true
 		else
@@ -115,20 +115,20 @@ do_sync() {
 	for DIR in "${WHATTOSYNC[@]}"; do
 		# this is the hdd bound backup in case of power failure
 		BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
-		USER="$(stat -c %U $DIR)"
-		GROUP="$(id -g $USER)"
+		USER=$(stat -c %U "$DIR")
+		GROUP=$(id -g "$USER")
 		LINK="$VOLATILE/asd-$USER$DIR"
 
 		# make tmpfs container
 		if [[ -d "$DIR" ]]; then
 			[[ -r "$LINK" ]] ||
-				install -dm700 --owner=$USER --group=$GROUP "$LINK"
+				install -dm700 --owner="$USER" --group="$GROUP" "$LINK"
 
 			# backup target and link to tmpfs container
 			if [[ $(readlink "$DIR") != "$LINK" ]]; then
 				mv "$DIR" "$BACKUP"
 				ln -s "$LINK" "$DIR"
-				chown -h $USER:$GROUP "$DIR"
+				chown -h "$USER":"$GROUP" "$DIR"
 			fi
 
 			# sync the tmpfs targets to the disc
@@ -137,7 +137,7 @@ do_sync() {
 			else
 				# initial sync
 				rsync -aog --inplace --no-whole-file "$BACKUP/" "$DIR/"
-				touch "$DIR/.flagged"
+				touch "$DIR"/.flagged
 			fi
 		fi
 	done
@@ -151,8 +151,8 @@ do_unsync() {
 	for DIR in "${WHATTOSYNC[@]}"; do
 		# this is the hdd bound backup in case of power failure
 		BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
-		USER="$(stat -c %U $DIR)"
-		GROUP="$(id -g $USER)"
+		USER=$(stat -c %U "$DIR")
+		GROUP=$(id -g "$USER")
 		LINK="$VOLATILE/asd-$USER$DIR"
 
 		# remove link and move data from tmpfs to disk
@@ -201,20 +201,20 @@ debug() {
 	for DIR in "${WHATTOSYNC[@]}"; do
 		# this is the hdd bound backup in case of power failure
 		BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
-		USER="$(stat -c %U $DIR)"
-		GROUP="$(id -g $USER)"
+		USER=$(stat -c %U "$DIR")
+		GROUP=$(id -g "$USER")
 		LINK="$VOLATILE/asd-$USER$DIR"
 		# profile dir size
-		psize=$(du -Lh --max-depth=0 $DIR 2>/dev/null | awk '{ print $1 }')
+		psize=$(du -Lh --max-depth=0 "$DIR" 2>/dev/null | awk '{ print $1 }')
 		if [[ -d "$DIR" ]]; then
 			echo -en " ${BLD}owner/group id:"
-			echo -e "$(tput cr)$(tput cuf 20) $USER/$GROUP"${NRM}
+			echo -e $(tput cr)$(tput cuf 20) "$USER"/"$GROUP"${NRM}
 			echo -en " ${BLD}target to manage:"
-			echo -e "$(tput cr)$(tput cuf 20) ${GRN}$DIR"${NRM}
+			echo -e $(tput cr)$(tput cuf 20) ${GRN}"$DIR"${NRM}
 			echo -en " ${BLD}sync target:"
-			echo -e "$(tput cr)$(tput cuf 20) ${BLU}$BACKUP"${NRM}
+			echo -e $(tput cr)$(tput cuf 20) ${BLU}"$BACKUP"${NRM}
 			echo -en " ${BLD}tmpfs target:"
-			echo -e "$(tput cr)$(tput cuf 20) ${RED}$LINK"${NRM}
+			echo -e $(tput cr)$(tput cuf 20) ${RED}"$LINK"${NRM}
 			echo -en " ${BLD}dir size:"
 			echo -e "$(tput cr)$(tput cuf 20) $psize"${NRM}
 			echo
@@ -227,15 +227,15 @@ case "$1" in
 		debug
 		;;
 	sync)
-		[[ ! -f $DAEMON_FILE ]] && check
+		[[ ! -f "$DAEMON_FILE" ]] && check
 		do_sync
 		;;
 	resync)
-		[[ -f $DAEMON_FILE ]] && do_sync
+		[[ -f "$DAEMON_FILE" ]] && do_sync
 		;;
 	unsync)
 		# make sure the daemon ran to setup the links
-		[[ -f $DAEMON_FILE ]] && do_sync && do_unsync
+		[[ -f "$DAEMON_FILE" ]] && do_sync && do_unsync
 		;;
 	*)
 		echo -e "${BLD}Anything-sync-daemon v$VERS${NRM}"
