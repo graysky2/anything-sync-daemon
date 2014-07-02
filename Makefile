@@ -56,6 +56,7 @@ install-systemd:
 	$(INSTALL_DIR) "$(DESTDIR)$(CONFDIR)"
 	$(INSTALL_DIR) "$(DESTDIR)$(INITDIR_SYSTEMD)"
 	$(INSTALL_DATA) common/asd.conf "$(DESTDIR)$(CONFDIR)/asd.conf"
+	$(INSTALL_DATA) common/asd.conf "$(DESTDIR)$(CONFDIR)/asd-exclude.conf"
 	$(INSTALL_DATA) init/asd.service "$(DESTDIR)$(INITDIR_SYSTEMD)/asd.service"
 	$(INSTALL_DATA) init/asd-resync.service "$(DESTDIR)$(INITDIR_SYSTEMD)/asd-resync.service"
 	$(INSTALL_DATA) init/asd-resync.timer "$(DESTDIR)$(INITDIR_SYSTEMD)/asd-resync.timer"
@@ -65,6 +66,7 @@ install-upstart:
 	$(INSTALL_DIR) "$(DESTDIR)$(CONFDIR)"
 	$(INSTALL_DIR) "$(DESTDIR)$(INITDIR_UPSTART)"
 	$(INSTALL_DATA) common/asd.conf "$(DESTDIR)$(CONFDIR)/asd.conf"
+	$(INSTALL_DATA) common/asd.conf "$(DESTDIR)$(CONFDIR)/asd-exclude.conf"
 	$(INSTALL_SCRIPT) init/asd.upstart "$(DESTDIR)$(INITDIR_UPSTART)/asd"
 
 install-systemd-all: install-bin install-man install-systemd
@@ -93,12 +95,14 @@ uninstall-cron:
 
 uninstall-systemd:
 	$(RM) "$(DESTDIR)$(CONFDIR)/asd.conf"
+	$(RM) "$(DESTDIR)$(CONFDIR)/asd-exclude.conf"
 	$(RM) "$(DESTDIR)$(INITDIR_SYSTEMD)/asd.service"
 	$(RM) "$(DESTDIR)$(INITDIR_SYSTEMD)/asd-resync.service"
 	$(RM) "$(DESTDIR)$(INITDIR_SYSTEMD)/asd-resync.timer"
 
 uninstall-upstart:
 	$(RM) "$(DESTDIR)$(CONFDIR)/asd.conf"
+	$(RM) "$(DESTDIR)$(CONFDIR)/asd-exclude.conf"
 	$(RM) "$(DESTDIR)$(INITDIR_UPSTART)/asd"
 
 uninstall-systemd-all: uninstall-bin uninstall-man uninstall-systemd
