@@ -56,7 +56,7 @@ install-systemd:
 	$(INSTALL_DIR) "$(DESTDIR)$(CONFDIR)"
 	$(INSTALL_DIR) "$(DESTDIR)$(INITDIR_SYSTEMD)"
 	$(INSTALL_DATA) common/asd.conf "$(DESTDIR)$(CONFDIR)/asd.conf"
-	$(INSTALL_DATA) common/asd.conf "$(DESTDIR)$(CONFDIR)/asd-exclude.conf"
+	$(INSTALL_DATA) common/asd-exclude.conf "$(DESTDIR)$(CONFDIR)/asd-exclude.conf"
 	$(INSTALL_DATA) init/asd.service "$(DESTDIR)$(INITDIR_SYSTEMD)/asd.service"
 	$(INSTALL_DATA) init/asd-resync.service "$(DESTDIR)$(INITDIR_SYSTEMD)/asd-resync.service"
 	$(INSTALL_DATA) init/asd-resync.timer "$(DESTDIR)$(INITDIR_SYSTEMD)/asd-resync.timer"
@@ -66,7 +66,7 @@ install-upstart:
 	$(INSTALL_DIR) "$(DESTDIR)$(CONFDIR)"
 	$(INSTALL_DIR) "$(DESTDIR)$(INITDIR_UPSTART)"
 	$(INSTALL_DATA) common/asd.conf "$(DESTDIR)$(CONFDIR)/asd.conf"
-	$(INSTALL_DATA) common/asd.conf "$(DESTDIR)$(CONFDIR)/asd-exclude.conf"
+	$(INSTALL_DATA) common/asd-exclude.conf "$(DESTDIR)$(CONFDIR)/asd-exclude.conf"
 	$(INSTALL_SCRIPT) init/asd.upstart "$(DESTDIR)$(INITDIR_UPSTART)/asd"
 
 install-systemd-all: install-bin install-man install-systemd
