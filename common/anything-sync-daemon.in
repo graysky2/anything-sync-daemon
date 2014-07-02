@@ -13,6 +13,7 @@ export BLD="\e[01m" \
 VERS="@VERSION@"
 
 ASDCONF=${ASDCONF:-"/etc/asd.conf"}
+ASDEXCONF=${ASDEXCONF:-"/etc/asd-exclude.conf"}
 DAEMON_FILE=${DAEMON_FILE:-"/run/asd"}
 
 # Setup check /etc/asd.conf
@@ -133,10 +134,10 @@ do_sync() {
 
 			# sync the tmpfs targets to the disc
 			if [[ -e "$LINK"/.flagged ]]; then
-				rsync -aog --delete-after --inplace --no-whole-file --exclude .flagged "$DIR/" "$BACKUP/"
+				rsync -aog --delete-after --inplace --no-whole-file --exclude .flagged --exclude-from=$ASDEXCONF "$DIR/" "$BACKUP/"
 			else
 				# initial sync
-				rsync -aog --inplace --no-whole-file "$BACKUP/" "$DIR/"
+				rsync -aog --inplace --no-whole-file --exclude-from=$ASDEXCONF "$BACKUP/" "$DIR/"
 				touch "$DIR"/.flagged
 			fi
 		fi
