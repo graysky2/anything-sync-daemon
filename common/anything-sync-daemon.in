@@ -223,7 +223,7 @@ debug() {
 }
 
 case "$1" in
-	debug|Debug|P|p|parse|Parse)
+	debug|Debug|P|p|parse|Parse|preview|Preview)
 		debug
 		;;
 	sync)
