@@ -3,6 +3,7 @@ Description=Anything-sync-daemon
 Documentation=man:asd(1) man:anything-sync-daemon(1)
 Documentation=https://wiki.archlinux.org/index.php/Anything-sync-daemon
 Wants=local-fs.target
+Wants=asd-resync.service
 After=winbindd.service
 
 [Service]
