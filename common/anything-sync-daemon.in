@@ -133,10 +133,10 @@ do_sync() {
 
 			# sync the tmpfs targets to the disc
 			if [[ -e "$LINK"/.flagged ]]; then
-				rsync -aog --delete-after --inplace --no-whole-file --exclude .flagged "$DIR/" "$BACKUP/"
+				rsync -aogX --delete-after --inplace --no-whole-file --exclude .flagged "$DIR/" "$BACKUP/"
 			else
 				# initial sync
-				rsync -aog --inplace --no-whole-file "$BACKUP/" "$DIR/"
+				rsync -aogX --inplace --no-whole-file "$BACKUP/" "$DIR/"
 				touch "$DIR"/.flagged
 			fi
 		fi
