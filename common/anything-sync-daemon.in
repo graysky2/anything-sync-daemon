@@ -137,11 +137,20 @@ do_sync() {
 		USER=$(stat -c %U "$DIR")
 		GROUP=$(id -g "$USER")
 		TMP="$VOLATILE/asd-$USER$DIR"
+		TMPRW="$VOLATILE/asd-$USER$DIR-rw"
+		TMPWK="$VOLATILE/.asd-$USER$DIR"
 
 		# make tmpfs container
 		if [[ -d "$DIR" ]]; then
 			[[ -r "$TMP" ]] ||
 				install -dm700 --owner="$USER" --group="$GROUP" "$TMP"
+
+			if [[ $OLFS -eq 1 ]]; then
+				[[ -r "$TMPRW" ]] ||
+					install -dm700 --owner="$USER" --group="$GROUP" "$TMPRW"
+				[[ -r "$TMPWK" ]] ||
+					install -dm700 --owner="$USER" --group="$GROUP" "$TMPWK"
+			fi
 
 			# backup target and link to tmpfs container
 			if [[ $(readlink "$DIR") != "$TMP" ]]; then
@@ -155,7 +164,11 @@ do_sync() {
 				rsync -aogX --delete-after --inplace --no-whole-file --exclude .flagged "$DIR/" "$BACKUP/"
 			else
 				# initial sync
-				rsync -aogX --inplace --no-whole-file "$BACKUP/" "$DIR/"
+				if [[ $OLFS -eq 1 ]]; then
+          mount -t overlay overlay -olowerdir="$BACKUP",upperdir="$TMPRW",workdir="$TMPWK" "$TMP"
+        else
+          rsync -aogX --inplace --no-whole-file "$BACKUP/" "$TMP/"
+        fi
 				touch "$DIR"/.flagged
 			fi
 		fi
@@ -172,16 +185,23 @@ do_unsync() {
 		USER=$(stat -c %U "$DIR")
 		GROUP=$(id -g "$USER")
 		TMP="$VOLATILE/asd-$USER$DIR"
+		TMPRW="$VOLATILE/asd-$USER$DIR-rw"
+    TMPWK="$VOLATILE/.asd-$USER$DIR"
 
 		# remove link and move data from tmpfs to disk
 		if [[ -h "$DIR" ]]; then
 			unlink "$DIR"
 			# this assumes that the backup is always
 			# updated so be sure to invoke a sync before an unsync
-			#
+			
 			# restore original dirtree
 			[[ -d "$BACKUP" ]] && mv "$BACKUP" "$DIR"
-			[[ -d "$TMP" ]] && rm -rf "$VOLATILE/asd-$USER"
+			if [[ $OLFS -eq 1 ]] && mountpoint -q "$TMP"; then
+        umount -l "$TMP"
+        rm -rf "$VOLATILE/asd-$USER" "$VOLATILE/asd-$USER-rw" "$VOLATILE/.asd-$USER"
+      else
+				[[ -d "$TMP" ]] && rm -rf "$VOLATILE/asd-$USER"
+			fi
 		fi
 	done
 }
@@ -222,6 +242,9 @@ parse() {
 		USER=$(stat -c %U "$DIR")
 		GROUP=$(id -g "$USER")
 		TMP="$VOLATILE/asd-$USER$DIR"
+    TMPRW="$VOLATILE/asd-$USER$DIR-rw"
+    TMPWK="$VOLATILE/.asd-$USER$DIR"
+
 		# profile dir size
 		psize=$(du -Lh --max-depth=0 "$DIR" 2>/dev/null | awk '{ print $1 }')
 		if [[ -d "$DIR" ]]; then
