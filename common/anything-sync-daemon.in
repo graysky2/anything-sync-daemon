@@ -122,7 +122,6 @@ ungraceful_state_check() {
 }
 
 do_sync() {
-	root_check
 	touch "$DAEMON_FILE"
 
 	# make a snapshot of /etc/asd.conf and redefine its location to tmpfs while
@@ -164,7 +163,6 @@ do_sync() {
 }
 
 do_unsync() {
-	root_check
 	rm -f "$DAEMON_FILE" "${DAEMON_FILE}.conf"
 
 	local DIR USER BACKUP LINK
