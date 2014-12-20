@@ -91,7 +91,7 @@ ungraceful_state_check() {
 	# on the filesystem and the link to tmpfs will be on the filesystem
 	# but the contents will be empty we need to simply remove the link
 	# and rotate the backup into place
-	local DIR USER BACKUP LINK
+	local DIR USER BACKUP TMP
 	for DIR in "${WHATTOSYNC[@]}"; do
 		# did user define a real dir
 		# this is the hdd bound backup in case of power failure
@@ -101,13 +101,13 @@ ungraceful_state_check() {
 		else
 			USER=$(stat -c %U "$DIR")
 		fi
-		LINK="$VOLATILE/asd-$USER$DIR"
+		TMP="$VOLATILE/asd-$USER$DIR"
 
 		# if ungracefully shutdown, both the backup and the link to tmpfs will
 		# be on the filesystem but the contents to the link  will be empty
 		# we need to simply remove the link and rotate the backup into place
 
-		if [[ -e "$LINK"/.flagged ]]; then
+		if [[ -e "$TMP"/.flagged ]]; then
 			# all is well so continue
 			return
 		else
@@ -130,28 +130,28 @@ do_sync() {
 	[[ ! -f "${DAEMON_FILE}.conf" ]] && cp "$ASDCONF" "${DAEMON_FILE}.conf"
 
 	# sync to tmpfs and back again
-	local DIR USER GROUP BACKUP LINK
+	local DIR USER GROUP BACKUP TMP
 	for DIR in "${WHATTOSYNC[@]}"; do
 		# this is the hdd bound backup in case of power failure
 		BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
 		USER=$(stat -c %U "$DIR")
 		GROUP=$(id -g "$USER")
-		LINK="$VOLATILE/asd-$USER$DIR"
+		TMP="$VOLATILE/asd-$USER$DIR"
 
 		# make tmpfs container
 		if [[ -d "$DIR" ]]; then
-			[[ -r "$LINK" ]] ||
-				install -dm700 --owner="$USER" --group="$GROUP" "$LINK"
+			[[ -r "$TMP" ]] ||
+				install -dm700 --owner="$USER" --group="$GROUP" "$TMP"
 
 			# backup target and link to tmpfs container
-			if [[ $(readlink "$DIR") != "$LINK" ]]; then
+			if [[ $(readlink "$DIR") != "$TMP" ]]; then
 				mv "$DIR" "$BACKUP"
-				ln -s "$LINK" "$DIR"
+				ln -s "$TMP" "$DIR"
 				chown -h "$USER":"$GROUP" "$DIR"
 			fi
 
 			# sync the tmpfs targets to the disc
-			if [[ -e "$LINK"/.flagged ]]; then
+			if [[ -e "$TMP"/.flagged ]]; then
 				rsync -aogX --delete-after --inplace --no-whole-file --exclude .flagged "$DIR/" "$BACKUP/"
 			else
 				# initial sync
@@ -165,13 +165,13 @@ do_sync() {
 do_unsync() {
 	rm -f "$DAEMON_FILE" "${DAEMON_FILE}.conf"
 
-	local DIR USER BACKUP LINK
+	local DIR USER BACKUP TMP
 	for DIR in "${WHATTOSYNC[@]}"; do
 		# this is the hdd bound backup in case of power failure
 		BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
 		USER=$(stat -c %U "$DIR")
 		GROUP=$(id -g "$USER")
-		LINK="$VOLATILE/asd-$USER$DIR"
+		TMP="$VOLATILE/asd-$USER$DIR"
 
 		# remove link and move data from tmpfs to disk
 		if [[ -h "$DIR" ]]; then
@@ -181,7 +181,7 @@ do_unsync() {
 			#
 			# restore original dirtree
 			[[ -d "$BACKUP" ]] && mv "$BACKUP" "$DIR"
-			[[ -d "$LINK" ]] && rm -rf "$VOLATILE/asd-$USER"
+			[[ -d "$TMP" ]] && rm -rf "$VOLATILE/asd-$USER"
 		fi
 	done
 }
@@ -215,13 +215,13 @@ parse() {
 	echo
 	echo -e "${BLD}Asd will manage the following per ${BLU}${ASDCONF}${NRM}${BLD} settings:"${NRM}
 	echo
-	local DIR USER GROUP BACKUP LINK
+	local DIR USER GROUP BACKUP TMP
 	for DIR in "${WHATTOSYNC[@]}"; do
 		# this is the hdd bound backup in case of power failure
 		BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
 		USER=$(stat -c %U "$DIR")
 		GROUP=$(id -g "$USER")
-		LINK="$VOLATILE/asd-$USER$DIR"
+		TMP="$VOLATILE/asd-$USER$DIR"
 		# profile dir size
 		psize=$(du -Lh --max-depth=0 "$DIR" 2>/dev/null | awk '{ print $1 }')
 		if [[ -d "$DIR" ]]; then
@@ -232,7 +232,7 @@ parse() {
 			echo -en " ${BLD}sync target:"
 			echo -e $(tput cr)$(tput cuf 20) ${BLU}"$BACKUP"${NRM}
 			echo -en " ${BLD}tmpfs target:"
-			echo -e $(tput cr)$(tput cuf 20) ${RED}"$LINK"${NRM}
+			echo -e $(tput cr)$(tput cuf 20) ${RED}"$TMP"${NRM}
 			echo -en " ${BLD}dir size:"
 			echo -e "$(tput cr)$(tput cuf 20) $psize"${NRM}
 			if [[ $OLFS -eq 1 ]]; then
