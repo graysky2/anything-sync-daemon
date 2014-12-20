@@ -5,11 +5,11 @@
 # Inspired by some code originally written by Colin Verot
 #
 
-export BLD="\e[01m" \
-	RED="\e[01;31m" \
-	GRN="\e[01;32m" \
-	BLU="\e[01;34m" \
-	NRM="\e[00m"
+BLD="\e[01m"
+RED="\e[01;31m"
+GRN="\e[01;32m"
+BLU="\e[01;34m"
+NRM="\e[00m"
 VERS="@VERSION@"
 
 ASDCONF=${ASDCONF:-"/etc/asd.conf"}
@@ -30,26 +30,49 @@ if [[ -f "${DAEMON_FILE}.conf" ]]; then
 	. "$ASDCONF"
 fi
 
-# nothing to do if these are empty
-if [[ -z "${WHATTOSYNC[0]}" ]]; then
-	echo -e " ${BLD}Must define at least one directory in ${NRM}${BLU}$ASDCONF"${NRM}
-	exit 1
-fi
-
 [[ -z "$VOLATILE" ]] && VOLATILE=/dev/shm
+case "${USE_OVERLAYFS,,}" in
+	y|yes|true|t|on|1|enabled|enable|use)
+		OLFS=1
+		;;
+	*)
+		OLFS=0
+		;;
+esac
 
-# make sure the user defined real dirs and crap out if not
-for DIR in "${WHATTOSYNC[@]}"; do
-	if [[ ! -d "$DIR" ]]; then
-		BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
-		if [[ ! -d "$BACKUP" ]]; then
-			echo -e "${BLD}Bad entry in your WHATTOSYNC array detected:"${NRM}
-			echo -e "${BLD}${RED}$DIR"${NRM}
-			echo -e "${BLD}Edit ${BLU}$ASDCONF${NRM}${BLD} correcting the mistake and try again."${NRM}
-			exit 1
-		fi
+dep_check() {
+	# Function is used to insure all dependencies are installed
+	command -v rsync >/dev/null 2>&1 || {
+	echo "I require rsync but it's not installed. Aborting." >&2
+	exit 1; }
+	command -v awk >/dev/null 2>&1 || {
+	echo "I require awk but it's not installed. Aborting." >&2; exit 1; }
+	if [[ $OLFS -eq 1 ]]; then
+		modprobe overlay &>/dev/null || {
+		echo -e " ${BLD}Overlayfs requires linux kernel >= 3.18. ${RED}Aborting!"${NRM} >&2; exit 1;}
 	fi
-done
+}
+
+config_check() {
+	# nothing to do if these are empty
+	if [[ -z "${WHATTOSYNC[0]}" ]]; then
+		echo -e " ${BLD}Must define at least one directory in ${NRM}${BLU}$ASDCONF"${NRM}
+		exit 1
+	fi
+
+	# make sure the user defined real dirs and crap out if not
+	for DIR in "${WHATTOSYNC[@]}"; do
+		if [[ ! -d "$DIR" ]]; then
+			BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
+			if [[ ! -d "$BACKUP" ]]; then
+				echo -e "${BLD}Bad entry in your WHATTOSYNC array detected:"${NRM}
+				echo -e "${BLD}${RED}$DIR"${NRM}
+				echo -e "${BLD}Edit ${BLU}$ASDCONF${NRM}${BLD} correcting the mistake and try again."${NRM}
+				exit 1
+			fi
+		fi
+	done
+}
 
 root_check() {
 	# we call this to ensure that only the root user is calling the
@@ -63,18 +86,11 @@ root_check() {
 	fi
 }
 
-dep_check() {
-	# Function is used to insure all dependencies are installed
-	command -v rsync >/dev/null 2>&1 || {
-	echo "I require rsync but it's not installed. Aborting." >&2
-	exit 1; }
-	command -v awk >/dev/null 2>&1 || {
-	echo "I require awk but it's not installed. Aborting." >&2; exit 1; }
-}
-
-check() {
-	dep_check
-	root_check
+ungraceful_state_check() {
+	# if the machine was ungracefully shutdown then the backup will be
+	# on the filesystem and the link to tmpfs will be on the filesystem
+	# but the contents will be empty we need to simply remove the link
+	# and rotate the backup into place
 	local DIR USER BACKUP LINK
 	for DIR in "${WHATTOSYNC[@]}"; do
 		# did user define a real dir
@@ -93,10 +109,14 @@ check() {
 
 		if [[ -e "$LINK"/.flagged ]]; then
 			# all is well so continue
-			/bin/true
+			return
 		else
 			[[ -h "$DIR" ]] && unlink "$DIR"
-			[[ -d "$BACKUP" ]] && mv "$BACKUP" "$DIR"
+			NOW=$(date +%Y%m%d_%H%M%S)
+			if [[ -d "$BACKUP" ]]; then
+				cp -a --reflink=auto "$BACKUP" "$BACKUP-crashrecovery-$NOW"
+				mv "$BACKUP" "$DIR"
+			fi
 		fi
 	done
 }
@@ -168,13 +188,12 @@ do_unsync() {
 	done
 }
 
-debug() {
+parse() {
 	if [[ -z $(sed 's| \\.*$||' /etc/issue | head -n 1) ]]; then
 		echo -e "${BLD}Anything-sync-daemon v$VERS"${NRM}
 	else
 		echo -e "${BLD}Anything-sync-daemon v$VERS${NRM}${BLD} on $(sed 's| \\.*$||' /etc/issue | head -n 1)."${NRM}
 	fi
-
 	echo
 	if [[ -f /usr/lib/systemd/system/asd.service ]]; then
 		# running systemd
@@ -182,7 +201,6 @@ debug() {
 		resync_state=$(systemctl is-active asd-resync.timer)
 		[[ "$asd_state" = "active" ]] && asd_color="${GRN}" || asd_color="${RED}"
 		[[ "$resync_state" = "active" ]] && resync_color="${GRN}" || resync_color="${RED}"
-
 		echo -e " ${BLD}Systemd service is currently ${asd_color}$asd_state${NRM}${BLD}."${NRM}
 		echo -e " ${BLD}Systemd resync service is currently ${resync_color}$resync_state${NRM}${BLD}."${NRM}
 	else
@@ -193,10 +211,12 @@ debug() {
 			echo -e ${GRN}present${NRM}${BLD} || echo -e ${RED}not present${NRM}${BLD})."${NRM}
 		echo -e " ${BLD}Resync cronjob is ${resync_color}${resync_state}${NRM}${BLD}."${NRM}
 	fi
+	[[ $OLFS -eq 1 ]] &&
+		echo -e "${BLD} Overlayfs technology is currently ${GRN}active${NRM}${BLD}."${NRM} ||
+		echo -e "${BLD} Overlayfs technology is currently ${RED}inactive${NRM}${BLD}."${NRM}
 	echo
 	echo -e "${BLD}Asd will manage the following per ${BLU}${ASDCONF}${NRM}${BLD} settings:"${NRM}
 	echo
-
 	local DIR USER GROUP BACKUP LINK
 	for DIR in "${WHATTOSYNC[@]}"; do
 		# this is the hdd bound backup in case of power failure
@@ -217,25 +237,30 @@ debug() {
 			echo -e $(tput cr)$(tput cuf 20) ${RED}"$LINK"${NRM}
 			echo -en " ${BLD}dir size:"
 			echo -e "$(tput cr)$(tput cuf 20) $psize"${NRM}
+			if [[ $OLFS -eq 1 ]]; then
+				rwsize=$(du -Lh --max-depth=0 "$TMPRW" 2>/dev/null | awk '{ print $1 }')
+				echo -en " ${BLD}overlayfs size:"
+				echo -e "$(tput cr)$(tput cuf 17) $rwsize"${NRM}
+			fi
 			echo
 		fi
 	done
 }
 
 case "$1" in
-	debug|Debug|P|p|parse|Parse|preview|Preview)
-		debug
+	p|P|Parse|parse|Preview|preview|debug)
+		dep_check && config_check && parse
 		;;
 	sync)
-		[[ ! -f "$DAEMON_FILE" ]] && check
-		do_sync
+		[[ ! -f "$DAEMON_FILE" ]] && root_check && dep_check && config_check &&
+			ungraceful_state_check && do_sync
 		;;
 	resync)
-		[[ -f "$DAEMON_FILE" ]] && do_sync
+		[[ -f "$DAEMON_FILE" ]] && root_check && do_sync
 		;;
 	unsync)
 		# make sure the daemon ran to setup the links
-		[[ -f "$DAEMON_FILE" ]] && do_sync && do_unsync
+		[[ -f "$DAEMON_FILE" ]] && root_check && do_sync && do_unsync
 		;;
 	*)
 		echo -e "${BLD}Anything-sync-daemon v$VERS${NRM}"
