@@ -103,10 +103,6 @@ ungraceful_state_check() {
 		fi
 		TMP="$VOLATILE/asd-$USER$DIR"
 
-		# if ungracefully shutdown, both the backup and the link to tmpfs will
-		# be on the filesystem but the contents to the link  will be empty
-		# we need to simply remove the link and rotate the backup into place
-
 		if [[ -e "$TMP"/.flagged ]]; then
 			# all is well so continue
 			return
@@ -165,10 +161,10 @@ do_sync() {
 			else
 				# initial sync
 				if [[ $OLFS -eq 1 ]]; then
-          mount -t overlay overlay -olowerdir="$BACKUP",upperdir="$TMPRW",workdir="$TMPWK" "$TMP"
-        else
-          rsync -aogX --inplace --no-whole-file "$BACKUP/" "$TMP/"
-        fi
+					mount -t overlay overlay -olowerdir="$BACKUP",upperdir="$TMPRW",workdir="$TMPWK" "$TMP"
+				else
+					rsync -aogX --inplace --no-whole-file "$BACKUP/" "$TMP/"
+				fi
 				touch "$DIR"/.flagged
 			fi
 		fi
@@ -186,20 +182,20 @@ do_unsync() {
 		GROUP=$(id -g "$USER")
 		TMP="$VOLATILE/asd-$USER$DIR"
 		TMPRW="$VOLATILE/asd-$USER$DIR-rw"
-    TMPWK="$VOLATILE/.asd-$USER$DIR"
+		TMPWK="$VOLATILE/.asd-$USER$DIR"
 
 		# remove link and move data from tmpfs to disk
 		if [[ -h "$DIR" ]]; then
 			unlink "$DIR"
 			# this assumes that the backup is always
 			# updated so be sure to invoke a sync before an unsync
-			
+
 			# restore original dirtree
 			[[ -d "$BACKUP" ]] && mv "$BACKUP" "$DIR"
 			if [[ $OLFS -eq 1 ]] && mountpoint -q "$TMP"; then
-        umount -l "$TMP"
-        rm -rf "$VOLATILE/asd-$USER" "$VOLATILE/asd-$USER-rw" "$VOLATILE/.asd-$USER"
-      else
+				umount -l "$TMP"
+				rm -rf "$VOLATILE/asd-$USER" "$VOLATILE/asd-$USER-rw" "$VOLATILE/.asd-$USER"
+			else
 				[[ -d "$TMP" ]] && rm -rf "$VOLATILE/asd-$USER"
 			fi
 		fi
@@ -242,8 +238,8 @@ parse() {
 		USER=$(stat -c %U "$DIR")
 		GROUP=$(id -g "$USER")
 		TMP="$VOLATILE/asd-$USER$DIR"
-    TMPRW="$VOLATILE/asd-$USER$DIR-rw"
-    TMPWK="$VOLATILE/.asd-$USER$DIR"
+		TMPRW="$VOLATILE/asd-$USER$DIR-rw"
+		TMPWK="$VOLATILE/.asd-$USER$DIR"
 
 		# profile dir size
 		psize=$(du -Lh --max-depth=0 "$DIR" 2>/dev/null | awk '{ print $1 }')
@@ -261,7 +257,7 @@ parse() {
 			if [[ $OLFS -eq 1 ]]; then
 				rwsize=$(du -Lh --max-depth=0 "$TMPRW" 2>/dev/null | awk '{ print $1 }')
 				echo -en " ${BLD}overlayfs size:"
-				echo -e "$(tput cr)$(tput cuf 17) $rwsize"${NRM}
+				echo -e "$(tput cr)$(tput cuf 20) $rwsize"${NRM}
 			fi
 			echo
 		fi
