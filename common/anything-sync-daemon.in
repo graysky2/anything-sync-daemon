@@ -139,14 +139,16 @@ do_sync() {
 
 		# make tmpfs container
 		if [[ -d "$DIR" ]]; then
+			# retain permissions on sync target
+			PREFIXP=$(stat -c %a "$DIR")
 			[[ -r "$TMP" ]] ||
-				install -dm700 --owner="$USER" --group="$GROUP" "$TMP"
+				install -dm$PREFIXP --owner="$USER" --group="$GROUP" "$TMP"
 
 			if [[ $OLFS -eq 1 ]]; then
 				[[ -r "$TMPRW" ]] ||
-					install -dm700 --owner="$USER" --group="$GROUP" "$TMPRW"
+					install -dm$PREFIXP --owner="$USER" --group="$GROUP" "$TMPRW"
 				[[ -r "$TMPWK" ]] ||
-					install -dm700 --owner="$USER" --group="$GROUP" "$TMPWK"
+					install -dm$PREFIXP --owner="$USER" --group="$GROUP" "$TMPWK"
 			fi
 
 			# backup target and link to tmpfs container
