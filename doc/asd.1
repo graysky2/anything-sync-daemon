@@ -4,7 +4,7 @@
 \fBanything-sync-daemon \fP- Symlinks and syncs user specified dirs to RAM thus reducing HDD/SDD calls and speeding-up the system.
 \fB
 .SH DESCRIPTION
-Anything-sync-daemon (asd) is a tiny pseudo-daemon designed to manage user specified directories in tmpfs and to periodically sync them back to the physical disc (HDD/SSD). This is accomplished via a symlinking step and an innovative use of rsync to maintain synchronization between a tmpfs copy and media-bound backups. Additionally, asd features several crash recovery features.
+Anything-sync-daemon (asd) is a tiny pseudo-daemon designed to manage user specified directories referred to as sync targets from here on out, in tmpfs and to periodically sync them back to the physical disc (HDD/SSD). This is accomplished via a symlinking step and an innovative use of rsync to maintain synchronization between a tmpfs copy and media-bound backups. Additionally, asd features several crash recovery features.
 .PP
 Design goals of asd:
 .RS
@@ -16,21 +16,21 @@ Reduced wear to physical discs (particularly SSDs).
 Speed.
 .RE
 .PP
-Since the target directories are relocated into tmpfs (RAM disk), the corresponding onslaught of I/O associated with system usage of them is also redirected from the physical disc to RAM, thus reducing wear to the physical disc and also improving speed and responsiveness. The access time of RAM is on the order of nanoseconds while the access time of physical discs is on the order of milliseconds. This is a difference of six orders of magnitude or 1,000,000 times faster.
+Since the sync \fBtarget\fP(s) is relocated into tmpfs (RAM disk), the corresponding onslaught of I/O associated with system usage of them is also redirected from the physical disc to RAM, thus reducing wear to the physical disc and also improving speed and responsiveness. The access time of RAM is on the order of nanoseconds while the access time of physical discs is on the order of milliseconds. This is a difference of six orders of magnitude or 1,000,000 times faster.
 .SH SETUP
 /etc/asd.conf contains all user managed settings.
 .PP
 WARNING -- Any edits made to /etc/asd.conf while psd is running will be applied only after asd has been restarted from the init service.
 .RS
 .IP \(bu 3
-At a minimum, define the target directory/directories to be managed by asd in the WHATTOSYNC array. Syntax below.
+At a minimum, define the sync \fBtarget\fP(s) to be managed by asd in the WHATTOSYNC array. Syntax below.
 .IP \(bu 3
 Optionally uncomment and define the location of your distro's tmpfs* in the VOLATILE variable.
 .IP \(bu 3
 Optionally enable the use of overlayfs to improve sync speed even further and use a smaller memory footprint. Do this in the USE_OVERLAYFS variable. Note that this option requires a Linux kernel version >=3.18.0. See the FAQ below for additional details on this feature.
 .RE
 .PP
-*Note that the default value of "/dev/shm" should work just fine for the VOLATILE setting. Be sure to read the warning about using software such as bleachbit with asd since bleachbit likes to remove files stored in /tmp. This is why a value of /dev/shm is recommended.
+*Note that the default value of "/dev/shm" should work just fine for the VOLATILE setting. Be aware that using software such as bleachbit with asd can be dangerous since bleachbit likes to remove files stored in /tmp. This is why a value of /dev/shm is recommended.
 .PP
 Example:
 .PP
@@ -144,7 +144,7 @@ Q1: What is overlayfs and why do I want to use it?
 .PP
 A1: Overlayfs is a simple union file-system mainlined in the Linux kernel version 3.18.0. Starting with asd version 5.54, overlayfs can be used to reduce the memory footprint of asd's tmpfs space and to speed up sync and unsync operations. The magic is in how the overlay mount only writes out data that has changed rather than the entire directory. See Example 1 below. The same recovery features asd uses in its default mode are also active when running in overlayfs mode. Overlayfs mode is enabled by uncommenting the USE_OVERLAYFS="yes" line in /etc/asd.conf followed by a restart of the daemon.
 .PP
-Example 1: Below is an example running psd in parse mode on a system using overlayfs to illustrate the memory savings that can be achieved. Note the "overlayfs size" report compared to the total "dir size" report for each sync target. Be aware that these numbers will change depending on just how much data is written to the sync target, but in common use cases, the overlayfs size will always be less than the dir size:
+Example 1: Below is an example running psd in parse mode on a system using overlayfs to illustrate the memory savings that can be achieved. Note the "overlayfs size" report compared to the total "dir size" report for each sync target. Be aware that these numbers will change depending on just how much data is written to the sync target, but in common use cases, the overlayfs size will always be less than the dir size. In the example given below this is not the case since monitorix using using a type of file that requires a total rewrite
 .PP
 Anything-sync-daemon v5.54 on Arch Linux.
 .PP
@@ -161,11 +161,11 @@ Asd will manage the following per /run/asd.conf settings:
 .nf
 .fam C
  owner/group id:     root/0
- target to manage:   /var/lib/monitorix
- sync target:        /var/lib/.monitorix-backup_asd
- tmpfs target:       /dev/shm/asd-root/var/lib/monitorix
+ target to manage:   /srv/http/serve
+ sync target:        /srv/http/.serve-backup_asd
+ tmpfs target:       /dev/shm/asd-root/srv/http/serve
  dir size:           21M
- overlayfs size:     6M
+ overlayfs size:     15M
 
  owner/group id:     facade/100
  target to manage:   /home/facade/logs
@@ -211,7 +211,7 @@ Users wishing to contribute to this code, should fork and send a pull request. S
 Discover a bug? Please open an issue on the project page linked below.
 .RS
 .IP \(bu 3
-Currently, asd cannot handle open files on a sync target so if a hung process has something open there, it can be messy.c
+Currently, asd cannot handle open files on a sync target so if a hung process has something open there, it can be messy.
 .SH ONLINE
 .IP \(bu 3
 Project page: https://github.com/graysky2/anything-sync-daemon
