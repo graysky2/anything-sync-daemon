@@ -144,7 +144,7 @@ Q1: What is overlayfs and why do I want to use it?
 .PP
 A1: Overlayfs is a simple union file-system mainlined in the Linux kernel version 3.18.0. Starting with asd version 5.54, overlayfs can be used to reduce the memory footprint of asd's tmpfs space and to speed up sync and unsync operations. The magic is in how the overlay mount only writes out data that has changed rather than the entire directory. See Example 1 below. The same recovery features asd uses in its default mode are also active when running in overlayfs mode. Overlayfs mode is enabled by uncommenting the USE_OVERLAYFS="yes" line in /etc/asd.conf followed by a restart of the daemon.
 .PP
-Example 1: Below is an example running psd in parse mode on a system using overlayfs to illustrate the memory savings that can be achieved. Note the "overlayfs size" report compared to the total "dir size" report for each sync target. Be aware that these numbers will change depending on just how much data is written to the sync target, but in common use cases, the overlayfs size will always be less than the dir size. In the example given below this is not the case since monitorix using using a type of file that requires a total rewrite
+Example 1: Below is an example running psd in parse mode on a system using overlayfs to illustrate the memory savings that can be achieved. Note the "overlayfs size" report compared to the total "dir size" report for each sync target. Be aware that these numbers will change depending on just how much data is written to the sync target, but in common use cases, the overlayfs size will always be less than the dir size.
 .PP
 Anything-sync-daemon v5.54 on Arch Linux.
 .PP
