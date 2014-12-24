@@ -31,6 +31,8 @@ if [[ -f "${DAEMON_FILE}.conf" ]]; then
 fi
 
 [[ -z "$VOLATILE" ]] && VOLATILE=/dev/shm
+
+# simple function to determine user intent rather than using an empty string
 case "${USE_OVERLAYFS,,}" in
 	y|yes|true|t|on|1|enabled|enable|use)
 		OLFS=1
@@ -40,6 +42,15 @@ case "${USE_OVERLAYFS,,}" in
 		;;
 esac
 
+# deterime is we are using overlayfs (v22 and below) or overlay (v23 and above)
+# overlay FS v23 and later requires both an upper and a work directory, both on
+# the same filesystem, but not part of the same subtree.
+
+if [[ $OLFS -eq 1 ]]; then
+	[[ $(grep -ciF overlay /proc/filesystems) -eq 1 ]] && OLFSVER=23
+	[[ $(grep -ciF overlayfs /proc/filesystems) -eq 1 ]] && OLFSVER=22
+fi
+
 dep_check() {
 	# Function is used to insure all dependencies are installed
 	command -v rsync >/dev/null 2>&1 || {
@@ -47,14 +58,13 @@ dep_check() {
 	exit 1; }
 	command -v awk >/dev/null 2>&1 || {
 	echo "I require awk but it's not installed. Aborting." >&2; exit 1; }
-  if [[ $OLFS -eq 1 ]]; then
-    modprobe overlay &>/dev/null || {
-    youare=$(logname)
-    echo -e " ${BLD}The overlay module needs to be loaded to use asd in overlayfs mode."${NRM}
-    echo -e " ${BLD}User $youare does not have permission to run: ${BLU}$(which modprobe) overlay${NRM}${BLD}"
-    echo -e " ${BLD}Load it manually and try again or remove the option from ${BLU}$ASDCONF${NRM}${BLD}."${NRM}
-    echo -e " ${BLD}Note that a kernel version >=3.18.0 is required for overlayfs mode. ${RED}Aborting!"${NRM} >&2; exit 1;}
-  fi
+	if [[ $OLFS -eq 1 ]]; then
+		grep overlay /proc/filesystems &>/dev/null || {
+		youare=$(logname)
+		echo -e " ${BLD}Depending on your distro, either the ${BLU}overlay${NRM}${BLD} or ${BLU}overlayfs${NRM}${BLD} module needs to be loaded"${NRM}
+		echo -e " ${BLD}to use asd's in overlay mode. Load the correct module for your distro manually and"${NRM}
+		echo -e " ${BLD}try again or remove the option from ${BLU}$ASDCONF${NRM}${BLD}. ${RED}Aborting!"${NRM} >&2; exit 1;}
+	fi
 }
 
 config_check() {
@@ -144,14 +154,15 @@ do_sync() {
 		if [[ -d "$DIR" ]]; then
 			# retain permissions on sync target
 			PREFIXP=$(stat -c %a "$DIR")
-			[[ -r "$TMP" ]] ||
-				install -dm$PREFIXP --owner="$USER" --group="$GROUP" "$TMP"
+			[[ -r "$TMP" ]] || install -dm$PREFIXP --owner="$USER" --group="$GROUP" "$TMP"
 
 			if [[ $OLFS -eq 1 ]]; then
-				[[ -r "$TMPRW" ]] ||
-					install -dm$PREFIXP --owner="$USER" --group="$GROUP" "$TMPRW"
-				[[ -r "$TMPWK" ]] ||
-					install -dm$PREFIXP --owner="$USER" --group="$GROUP" "$TMPWK"
+				if [[ $OLFSVER -eq 23 ]]; then
+					[[ -r "$TMPRW" ]] || install -dm$PREFIXP --owner="$USER" --group="$GROUP" "$TMPRW"
+					[[ -r "$TMPWK" ]] || install -dm$PREFIXP --owner="$USER" --group="$GROUP" "$TMPWK"
+				elif [[ $OLFSVER -eq 22 ]]; then
+					[[ -r "$TMPRW" ]] || install -dm$PREFIXP --owner="$USER" --group="$GROUP" "$TMPRW"
+				fi
 			fi
 
 			# backup target and link to tmpfs container
@@ -167,7 +178,11 @@ do_sync() {
 			else
 				# initial sync
 				if [[ $OLFS -eq 1 ]]; then
-					mount -t overlay overlay -olowerdir="$BACKUP",upperdir="$TMPRW",workdir="$TMPWK" "$TMP"
+					if [[ $OLFSVER -eq 23 ]]; then
+						mount -t overlay overlaid -olowerdir="$BACKUP",upperdir="$TMPRW",workdir="$TMPWK" "$TMP"
+					elif [[ $OLFSVER -eq 22 ]]; then
+						mount -t overlayfs overlaid -olowerdir="$BACKUP",upperdir="$TMPRW" "$TMP"
+					fi
 				else
 					rsync -aogX --inplace --no-whole-file "$BACKUP/" "$TMP/"
 				fi
@@ -200,7 +215,7 @@ do_unsync() {
 			[[ -d "$BACKUP" ]] && mv "$BACKUP" "$DIR"
 			if [[ $OLFS -eq 1 ]] && mountpoint -q "$TMP"; then
 				umount -l "$TMP"
-				rm -rf "$VOLATILE/asd-$USER" "$VOLATILE/asd-$USER-rw" "$VOLATILE/.asd-$USER"
+				rm -rf "$VOLATILE/asd-$USER" "$VOLATILE/asd-$USER-rw" "$VOLATILE/.asd-$USER" &>/dev/null
 			else
 				[[ -d "$TMP" ]] && rm -rf "$VOLATILE/asd-$USER"
 			fi
@@ -209,11 +224,26 @@ do_unsync() {
 }
 
 parse() {
-	if [[ -z $(sed 's| \\.*$||' /etc/issue | head -n 1) ]]; then
-		echo -e "${BLD}Anything-sync-daemon v$VERS"${NRM}
+	# get distro name
+	# first try os-release
+	if [[ -f /etc/os-release ]]; then
+		source /etc/os-release
+		if [[ -n "$PRETTY_NAME" ]]; then
+			distro="$PRETTY_NAME"
+		elif [[ -n "$NAME" ]]; then
+			distro="$NAME"
+		fi
 	else
-		echo -e "${BLD}Anything-sync-daemon v$VERS${NRM}${BLD} on $(sed 's| \\.*$||' /etc/issue | head -n 1)."${NRM}
+		# if not os-release try issue
+		if [[ -n $(sed 's| \\.*$||' /etc/issue | head -n 1) ]]; then
+			distro="$(sed 's| \\.*$||' /etc/issue | head -n 1)"
+		else
+			# fuck it
+			distro=
+		fi
 	fi
+	[[ -z "$distro" ]] && echo -e "${BLD}Anything-sync-daemon v$VERS"${NRM} ||
+		echo -e "${BLD}Anything-sync-daemon v$VERS${NRM}${BLD} on $distro"${NRM}
 	echo
 	if [[ -f /usr/lib/systemd/system/asd.service ]]; then
 		# running systemd
@@ -232,7 +262,7 @@ parse() {
 		echo -e " ${BLD}Resync cronjob is ${resync_color}${resync_state}${NRM}${BLD}."${NRM}
 	fi
 	[[ $OLFS -eq 1 ]] &&
-		echo -e "${BLD} Overlayfs technology is currently ${GRN}active${NRM}${BLD}."${NRM} ||
+		echo -e "${BLD} Overlayfs v$OLFSVER is currently ${GRN}active${NRM}${BLD}."${NRM} ||
 		echo -e "${BLD} Overlayfs technology is currently ${RED}inactive${NRM}${BLD}."${NRM}
 	echo
 	echo -e "${BLD}Asd will manage the following per ${BLU}${ASDCONF}${NRM}${BLD} settings:"${NRM}
