@@ -32,7 +32,7 @@ fi
 
 [[ -z "$VOLATILE" ]] && VOLATILE=/dev/shm
 
-# simple function to determine user intent rather than using an empty string
+# simple function to determine user intent rather than using a null value
 case "${USE_OVERLAYFS,,}" in
 	y|yes|true|t|on|1|enabled|enable|use)
 		OLFS=1
@@ -40,6 +40,18 @@ case "${USE_OVERLAYFS,,}" in
 	*)
 		OLFS=0
 		;;
+esac
+
+# since the default for this one is a yes, need to force a null value to yes
+[[ -z "${USE_BACKUPS,,}" ]] && USE_BACKUPS="yes"
+
+case "${USE_BACKUPS,,}" in
+  y|yes|true|t|on|1|enabled|enable|use)
+    CRRE=1
+    ;;
+  *)
+    CRRE=0
+    ;;
 esac
 
 # deterime is we are using overlayfs (v22 and below) or overlay (v23 and above)
@@ -121,12 +133,42 @@ ungraceful_state_check() {
 			# all is well so continue
 			return
 		else
-			[[ -h "$DIR" ]] && unlink "$DIR"
 			NOW=$(date +%Y%m%d_%H%M%S)
+			[[ -h "$DIR" ]] && unlink "$DIR"
 			if [[ -d "$BACKUP" ]]; then
-				cp -a --reflink=auto "$BACKUP" "$BACKUP-crashrecovery-$NOW"
+				[[ $CRRE -eq 1 ]] &&
+					cp -a --reflink=auto "$BACKUP" "$BACKUP-crashrecovery-$NOW"
 				mv "$BACKUP" "$DIR"
 			fi
+		fi
+	done
+}
+
+cleanup() {
+	local DIR USER GROUP BACKUP TMP
+	for DIR in "${WHATTOSYNC[@]}"; do
+		# this is the hdd bound backup in case of power failure
+		BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
+		USER=$(stat -c %U "$DIR")
+		GROUP=$(id -g "$USER")
+		TMP="$VOLATILE/asd-$USER$DIR"
+		TMPRW="$VOLATILE/asd-$USER$DIR-rw"
+		TMPWK="$VOLATILE/.asd-$USER$DIR"
+
+		if [[ -d "$DIR" ]]; then
+			ls "$BACKUP"-crashrecovery* &>/dev/null
+			if [[ $? -eq 0  ]]; then
+				CRASHArr=("$BACKUP"-crashrecovery*)
+				echo -e ${BLD}"Deleting ${#CRASHArr[@]} crashrecovery dir(s) for sync target ${BLU}$DIR"${NRM}
+				for backup in "${CRASHArr[@]}"; do
+					echo -e ${BLD}${RED}" $backup"${NRM}
+					rm -rf "$backup"
+				done
+				unset CRASHArr
+			else
+				echo -e ${BLD}"Found no crashrecovery dirs for: ${BLU}$DIR${NRM}${BLD}"${NRM}
+			fi
+			echo
 		fi
 	done
 }
@@ -280,6 +322,9 @@ parse() {
 		# profile dir size
 		psize=$(du -Lh --max-depth=0 "$DIR" 2>/dev/null | awk '{ print $1 }')
 		if [[ -d "$DIR" ]]; then
+			# first count up any crashrecovery dirs
+			ls "$BACKUP"-crashrecovery* &>/dev/null
+			[[ $? -eq 0  ]] && CRASHArr=("$BACKUP"-crashrecovery*)
 			echo -en " ${BLD}owner/group id:"
 			echo -e $(tput cr)$(tput cuf 20) "$USER"/"$GROUP"${NRM}
 			echo -en " ${BLD}target to manage:"
@@ -295,6 +340,18 @@ parse() {
 				echo -en " ${BLD}overlayfs size:"
 				echo -e "$(tput cr)$(tput cuf 20) $rwsize"${NRM}
 			fi
+			echo -en " ${BLD}recovery dirs:"
+			if [[ "${#CRASHArr[@]}" -eq 0 ]]; then
+				echo -e "$(tput cr)$(tput cuf 20) none"${NRM}
+			else
+				echo -e "$(tput cr)$(tput cuf 17) ${RED}${#CRASHArr[@]}${NRM}${BLD} <- delete with the c option"${NRM}
+				for backup in "${CRASHArr[@]}"; do
+					psize=$(du -Lh --max-depth=0 "$backup" 2>/dev/null | awk '{ print $1 }')
+					echo -en " ${BLD} dir path/size:"
+					echo -e "$(tput cr)$(tput cuf 17) ${BLU}$backup ${NRM}${BLD}($psize)"${NRM} 
+				done
+			fi
+			unset CRASHArr
 			echo
 		fi
 	done
@@ -303,6 +360,9 @@ parse() {
 case "$1" in
 	p|P|Parse|parse|Preview|preview|debug)
 		dep_check && config_check && parse
+		;;
+	c|C|clean|Clean)
+		dep_check && config_check && cleanup
 		;;
 	sync)
 		[[ ! -f "$DAEMON_FILE" ]] && root_check && dep_check && config_check &&
@@ -320,6 +380,7 @@ case "$1" in
 		echo
 		echo -e " ${BLD}$0 ${NRM}${GRN}[option]${NRM}"
 		echo -e " ${BLD} ${NRM}${GRN}preview${NRM}${BLD}  Parse config file (${NRM}${BLU}${ASDCONF}${NRM}${BLD}) to see what will be managed."${NRM}
+		echo -e " ${BLD} ${NRM}${GRN}clean${NRM}${BLD}		Clean (delete without prompting) ALL crashrecovery dirs."${NRM}
 		echo -e " ${BLD} ${NRM}${GRN}resync${NRM}${BLD} Synchronize the tmpfs and media bound copy. Must be run as root user."${NRM}
 		echo -e " ${BLD} ${NRM}${RED}sync${NRM}${BLD}   Force a manual sync. Must be run as root user and NOT recommended."${NRM}
 		echo -e " ${BLD} ${NRM}${RED}unsync${NRM}${BLD} Force a manual unsync. Must be run as root user and NOT recommended."${NRM}
