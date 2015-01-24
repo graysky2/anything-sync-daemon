@@ -320,7 +320,7 @@ parse() {
 		TMPRW="$VOLATILE/asd-$USER$DIR-rw"
 		TMPWK="$VOLATILE/.asd-$USER$DIR"
 
-		# profile dir size
+		# sync target dir size
 		psize=$(du -Lh --max-depth=0 "$DIR" 2>/dev/null | awk '{ print $1 }')
 		if [[ -d "$DIR" ]]; then
 			# first count up any crashrecovery dirs
