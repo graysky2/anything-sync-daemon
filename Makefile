@@ -1,4 +1,4 @@
-VERSION = 5.60
+VERSION = 5.65
 PN = anything-sync-daemon
 
 PREFIX ?= /usr
