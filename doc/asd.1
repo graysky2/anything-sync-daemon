@@ -89,6 +89,8 @@ The preview (parse) option can be called to show users exactly what asd will do/
 .SS CLEAN MODE
 The clean mode will delete ALL recovery snapshots that have accumulated. Run this only if you are sure that you want to delete them.
 .PP
+Note that if a sync target is owned by root or another user, and if you call asd to clean, it will throw errors based on the permissions of your sync targets.
+.PP
 .nf
 .fam C
  $ asd c
