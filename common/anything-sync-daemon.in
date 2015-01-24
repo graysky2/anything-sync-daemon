@@ -46,12 +46,12 @@ esac
 [[ -z "${USE_BACKUPS,,}" ]] && USE_BACKUPS="yes"
 
 case "${USE_BACKUPS,,}" in
-  y|yes|true|t|on|1|enabled|enable|use)
-    CRRE=1
-    ;;
-  *)
-    CRRE=0
-    ;;
+	y|yes|true|t|on|1|enabled|enable|use)
+		CRRE=1
+		;;
+	*)
+		CRRE=0
+		;;
 esac
 
 # deterime is we are using overlayfs (v22 and below) or overlay (v23 and above)
@@ -62,6 +62,28 @@ if [[ $OLFS -eq 1 ]]; then
 	[[ $(grep -ciF overlay /proc/filesystems) -eq 1 ]] && OLFSVER=23
 	[[ $(grep -ciF overlayfs /proc/filesystems) -eq 1 ]] && OLFSVER=22
 fi
+
+# get distro name
+# first try os-release
+if [[ -f /etc/os-release ]]; then
+	source /etc/os-release
+	if [[ -n "$PRETTY_NAME" ]]; then
+		distro="$PRETTY_NAME"
+	elif [[ -n "$NAME" ]]; then
+		distro="$NAME"
+	fi
+else
+	# if not os-release try issue
+	if [[ -n $(sed 's| \\.*$||' /etc/issue | head -n 1) ]]; then
+		distro="$(sed 's| \\.*$||' /etc/issue | head -n 1)"
+	else
+		# fuck it
+		distro=
+	fi
+fi
+[[ -z "$distro" ]] && echo -e "${BLD}Anything-sync-daemon v$VERS"${NRM} ||
+	echo -e "${BLD}Anything-sync-daemon v$VERS${NRM}${BLD} on $distro"${NRM}
+echo
 
 dep_check() {
 	# Function is used to insure all dependencies are installed
@@ -266,27 +288,6 @@ do_unsync() {
 }
 
 parse() {
-	# get distro name
-	# first try os-release
-	if [[ -f /etc/os-release ]]; then
-		source /etc/os-release
-		if [[ -n "$PRETTY_NAME" ]]; then
-			distro="$PRETTY_NAME"
-		elif [[ -n "$NAME" ]]; then
-			distro="$NAME"
-		fi
-	else
-		# if not os-release try issue
-		if [[ -n $(sed 's| \\.*$||' /etc/issue | head -n 1) ]]; then
-			distro="$(sed 's| \\.*$||' /etc/issue | head -n 1)"
-		else
-			# fuck it
-			distro=
-		fi
-	fi
-	[[ -z "$distro" ]] && echo -e "${BLD}Anything-sync-daemon v$VERS"${NRM} ||
-		echo -e "${BLD}Anything-sync-daemon v$VERS${NRM}${BLD} on $distro"${NRM}
-	echo
 	if [[ -f /usr/lib/systemd/system/asd.service ]]; then
 		# running systemd
 		asd_state=$(systemctl is-active asd)
