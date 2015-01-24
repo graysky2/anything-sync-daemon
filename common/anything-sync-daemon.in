@@ -344,11 +344,11 @@ parse() {
 			if [[ "${#CRASHArr[@]}" -eq 0 ]]; then
 				echo -e "$(tput cr)$(tput cuf 20) none"${NRM}
 			else
-				echo -e "$(tput cr)$(tput cuf 17) ${RED}${#CRASHArr[@]}${NRM}${BLD} <- delete with the c option"${NRM}
+				echo -e "$(tput cr)$(tput cuf 20) ${RED}${#CRASHArr[@]}${NRM}${BLD} <- delete with the c option"${NRM}
 				for backup in "${CRASHArr[@]}"; do
 					psize=$(du -Lh --max-depth=0 "$backup" 2>/dev/null | awk '{ print $1 }')
 					echo -en " ${BLD} dir path/size:"
-					echo -e "$(tput cr)$(tput cuf 17) ${BLU}$backup ${NRM}${BLD}($psize)"${NRM} 
+					echo -e "$(tput cr)$(tput cuf 20) ${BLU}$backup ${NRM}${BLD}($psize)"${NRM} 
 				done
 			fi
 			unset CRASHArr
