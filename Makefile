@@ -1,4 +1,4 @@
-VERSION = 5.65
+VERSION = 5.67
 PN = anything-sync-daemon
 
 PREFIX ?= /usr
@@ -9,6 +9,7 @@ INITDIR_UPSTART = /etc/init.d
 BINDIR = $(PREFIX)/bin
 DOCDIR = $(PREFIX)/share/doc/$(PN)-$(VERSION)
 MANDIR = $(PREFIX)/share/man/man1
+ZSHDIR = $(PREFIX)/share/zsh/site-functions
 
 # set to anything except 0 to enable manpage compression
 COMPRESS_MAN = 1
@@ -34,6 +35,8 @@ install-bin: common/$(PN)
 	$(INSTALL_DIR) "$(DESTDIR)$(BINDIR)"
 	$(INSTALL_PROGRAM) common/$(PN) "$(DESTDIR)$(BINDIR)/$(PN)"
 	ln -s $(PN) "$(DESTDIR)$(BINDIR)/asd"
+	$(INSTALL_DIR) "$(DESTDIR)$(ZSHDIR)"
+	$(INSTALL_PROGRAM) common/zsh-completion "$(DESTDIR)/$(ZSHDIR)/_asd"
 
 install-man:
 	$(Q)echo -e '\033[1;32mInstalling manpage...\033[0m'
@@ -81,6 +84,7 @@ install:
 uninstall-bin:
 	$(RM) "$(DESTDIR)$(BINDIR)/$(PN)"
 	$(RM) "$(DESTDIR)$(BINDIR)/asd"
+	$(RM) "$(DESTDIR)/$(ZSHDIR)/_asd"
 
 uninstall-man:
 	$(RM) -f "$(DESTDIR)$(MANDIR)/$(PN).1.gz"
