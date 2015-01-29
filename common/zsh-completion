@@ -1,10 +1,10 @@
-#compdef asd profile-sync-daemon
+#compdef asd anything-sync-daemon
 
 _asd() {
   local -a options
 
   options=('p:Preview what asd will do/is doing and printout useful info'
-           'c:Clean (delete without prompting) ALL crashrecovery dirs for all profiles')
+           'c:Clean (delete without prompting) ALL crashrecovery dirs for all sync targets')
 
   _describe 'options' options
 }
