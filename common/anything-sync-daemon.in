@@ -81,9 +81,12 @@ else
 		distro=
 	fi
 fi
-[[ -z "$distro" ]] && echo -e "${BLD}Anything-sync-daemon v$VERS"${NRM} ||
-	echo -e "${BLD}Anything-sync-daemon v$VERS${NRM}${BLD} on $distro"${NRM}
-echo
+
+header() {
+	[[ -z "$distro" ]] && echo -e "${BLD}Anything-sync-daemon v$VERS"${NRM} ||
+		echo -e "${BLD}Anything-sync-daemon v$VERS${NRM}${BLD} on $distro"${NRM}
+	echo
+}
 
 dep_check() {
 	# Function is used to insure all dependencies are installed
@@ -254,6 +257,7 @@ do_sync() {
 			fi
 		fi
 	done
+	echo -e "${BLD}Sync successful"${NRM}
 }
 
 do_unsync() {
@@ -285,6 +289,7 @@ do_unsync() {
 			fi
 		fi
 	done
+	echo -e "${BLD}Unsync successful"${NRM}
 }
 
 parse() {
@@ -360,10 +365,10 @@ parse() {
 
 case "$1" in
 	p|P|Parse|parse|Preview|preview|debug)
-		dep_check && config_check && parse
+		dep_check && config_check && header && parse
 		;;
 	c|C|clean|Clean)
-		dep_check && config_check && cleanup
+		dep_check && config_check && header && cleanup
 		;;
 	sync)
 		[[ ! -f "$DAEMON_FILE" ]] && root_check && dep_check && config_check &&
