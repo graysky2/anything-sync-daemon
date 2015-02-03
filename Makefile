@@ -36,7 +36,7 @@ install-bin: common/$(PN)
 	$(INSTALL_PROGRAM) common/$(PN) "$(DESTDIR)$(BINDIR)/$(PN)"
 	ln -s $(PN) "$(DESTDIR)$(BINDIR)/asd"
 	$(INSTALL_DIR) "$(DESTDIR)$(ZSHDIR)"
-	$(INSTALL_PROGRAM) common/zsh-completion "$(DESTDIR)/$(ZSHDIR)/_asd"
+	$(INSTALL_DATA) common/zsh-completion "$(DESTDIR)/$(ZSHDIR)/_asd"
 
 install-man:
 	$(Q)echo -e '\033[1;32mInstalling manpage...\033[0m'
