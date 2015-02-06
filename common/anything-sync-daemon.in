@@ -30,7 +30,7 @@ if [[ -f "${DAEMON_FILE}.conf" ]]; then
 	. "$ASDCONF"
 fi
 
-[[ -z "$VOLATILE" ]] && VOLATILE=/dev/shm
+[[ -z "$VOLATILE" ]] && VOLATILE=/tmp
 
 # simple function to determine user intent rather than using a null value
 case "${USE_OVERLAYFS,,}" in
