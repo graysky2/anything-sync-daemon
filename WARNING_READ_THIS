@@ -1,4 +1,4 @@
-Users of versions older than v3.15 MUST stop asd before upgrading.
+Users of versions older than v5.69 MUST stop asd before upgrading.
 Data loss can occur if you ignore this warning.
 
 Arch Linux users do not need to worry about if asd is installed from the
