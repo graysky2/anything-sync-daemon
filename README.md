@@ -12,7 +12,7 @@ To build from source, see the included INSTALL text document.
 * ![logo](http://s18.postimg.org/w5jvz71mt/chakra.jpg "chakra logo")Chakra: in the [CCR](http://chakraos.org/ccr/packages.php?ID=3750).
 
 ##WARNING
-Users of versions older than v3.15 MUST stop asd before upgrading. Data loss can occur if you ignore this warning.
+Users of versions older than v5.65 MUST stop asd before upgrading. Data loss can occur if you ignore this warning.
 
 Arch Linux users do not need to worry about if asd is installed from the official PKGBUILD in the AUR. This contains a pre_upgrade scriptlet that will stop asd for you.
 
