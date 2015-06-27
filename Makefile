@@ -1,4 +1,4 @@
-VERSION = 5.73
+VERSION = 5.74
 PN = anything-sync-daemon
 
 PREFIX ?= /usr
@@ -7,7 +7,7 @@ CRONDIR = /etc/cron.hourly
 INITDIR_SYSTEMD = /usr/lib/systemd/system
 INITDIR_UPSTART = /etc/init.d
 BINDIR = $(PREFIX)/bin
-DOCDIR = $(PREFIX)/share/doc/$(PN)-$(VERSION)
+DOCDIR = $(PREFIX)/share/doc/$(PN)
 MANDIR = $(PREFIX)/share/man/man1
 ZSHDIR = $(PREFIX)/share/zsh/site-functions
 

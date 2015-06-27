@@ -14,4 +14,3 @@ ExecStop=/usr/bin/anything-sync-daemon unsync
 
 [Install]
 WantedBy=multi-user.target
-Also=asd-resync.service asd-resync.timer
