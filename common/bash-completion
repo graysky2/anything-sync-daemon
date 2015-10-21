@@ -1,0 +1,34 @@
+_asd() {
+	local cur prev opts
+	COMPREPLY=""
+
+	#word we're currently working on completing
+	cur="${COMP_WORDS[COMP_CWORD]}"
+
+	#the previous word
+	prev="${COMP_WORDS[COMP_CWORD-1]}"
+
+	#the escaped spaces are needed for bash-complete to put a space after completion
+	#otherwise we get stuck on the last letter of our completions 
+	opts="parse\  clean\ "
+
+
+	case "${prev}" in
+		"parse"|"p"|"Parse"|"P"|"Preview"|"preview"|"debug")
+			printf "%b" "\nPreview what asd will do/is doing and print out useful info\n"
+			printf "%b " $@
+			;;
+		"clean"|"Clean"|"c"|"C")
+			printf "%b" "\nClean (delete without prompting) ALL crashrecovery dirs for all sync targets\n"
+			printf "%b " $@
+			;;
+		"asd"|"anything-sync-daemon"|*) 
+			COMPREPLY=($(compgen -W "${opts}" -- ${cur}) );;
+	esac
+
+
+}
+complete -F _asd asd
+
+
+
