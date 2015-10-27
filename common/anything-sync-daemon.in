@@ -157,6 +157,7 @@ ungraceful_state_check() {
 		# did user define a real dir
 		# this is the hdd bound backup in case of power failure
 		BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
+		BACK_OVFS="${DIR%/*}/.${DIR##*/}-back-ovfs"
 		if [[ -d "$BACKUP" ]]; then
 			USER=$(stat -c %U "$BACKUP")
 		else
@@ -169,13 +170,49 @@ ungraceful_state_check() {
 			return
 		else
 			NOW=$(date +%Y%m%d_%H%M%S)
-			[[ -h "$DIR" ]] && unlink "$DIR"
+			if [[ -h "$DIR" ]]; then
+				echo "Ungraceful state detected for $DIR so fixing"
+				unlink "$DIR"
+			fi
+
 			if [[ -d "$BACKUP" ]]; then
-				[[ $CRRE -eq 1 ]] &&
-					cp -a --reflink=auto "$BACKUP" "$BACKUP-crashrecovery-$NOW"
-				mv "$BACKUP" "$DIR"
+				if [[ -d "$BACK_OVFS" ]]; then
+					# always snapshot the most recent of these two dirs...
+					# if using overlayfs $BACK_OVFS and $BACKUP should be compared
+					# against each other to see which is newer and then that should
+					# be what psd snapshots since BACKUP (the lowerdir) is readonly
+					# at the time the user started psd could be many resync cycles
+					# in the past
+
+					BACKUP_TIME=$(stat "$BACKUP" | grep Change | awk '{ print $2,$3 }')
+					BACK_OVFS_TIME=$(stat "$BACK_OVFS" | grep Change | awk '{ print $2,$3 }')
+
+					[[ $(date -d "$BACK_OVFS_TIME" "+%s") -ge $(date -d "$BACKUP_TIME" "+%s") ]] &&
+						TARGETTOKEEP="$BACK_OVFS" ||
+						TARGETTOKEEP="$BACKUP"
+
+					if [[ $CRRE -eq 1 ]]; then
+						opts="-a --reflink=auto"
+						cp $opts "$TARGETTOKEEP" "$BACKUP-crashrecovery-$NOW"
+					fi
+
+					mv "$TARGETTOKEEP" "$DIR"
+					rm -rf "$BACKUP"
+				else
+					# we only find the BACKUP and no BACKOVFS then either the initial resync
+					# never occurred before the crash using overlayfs or we aren't using overlayfs
+					# at all which can be treated the same way
+
+					if [[ $CRRE -eq 1 ]]; then
+						opts="-a --reflink=auto"
+						cp $opts "$BACKUP" "$BACKUP-crashrecovery-$NOW"
+						mv "$BACKUP" "$DIR"
+					fi
+				fi
 			fi
 		fi
+		# if overlayfs was active but is no longer, remove $BACK_OVFS
+		[[ $OLFS -eq 1 ]] || rm -rf "$BACK_OVFS"
 	done
 }
 
