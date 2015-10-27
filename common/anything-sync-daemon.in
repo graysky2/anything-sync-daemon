@@ -221,6 +221,7 @@ do_sync() {
 	for DIR in "${WHATTOSYNC[@]}"; do
 		# this is the hdd bound backup in case of power failure
 		BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
+		BACK_OVFS="${DIR%/*}/.${DIR##*/}-back-ovfs"
 		USER=$(stat -c %U "$DIR")
 		GROUP=$(id -g "$USER")
 		TMP="$VOLATILE/asd-$USER$DIR"
@@ -251,7 +252,11 @@ do_sync() {
 
 			# sync the tmpfs targets to the disc
 			if [[ -e "$TMP"/.flagged ]]; then
-				rsync -aogX --delete-after --inplace --no-whole-file --exclude .flagged "$DIR/" "$BACKUP/"
+				if [[ $OLFS -eq 1 ]]; then
+					rsync -aogX --delete-after --inplace --no-whole-file --exclude .flagged "$DIR/" "$BACK_OVFS/"
+				else
+					rsync -aogX --delete-after --inplace --no-whole-file --exclude .flagged "$DIR/" "$BACKUP/"
+				fi
 			else
 				# initial sync
 				if [[ $OLFS -eq 1 ]]; then
@@ -277,6 +282,7 @@ do_unsync() {
 	for DIR in "${WHATTOSYNC[@]}"; do
 		# this is the hdd bound backup in case of power failure
 		BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
+		BACK_OVFS="${DIR%/*}/.${DIR##*/}-back-ovfs"
 		USER=$(stat -c %U "$DIR")
 		GROUP=$(id -g "$USER")
 		TMP="$VOLATILE/asd-$USER$DIR"
@@ -292,6 +298,7 @@ do_unsync() {
 			# restore original dirtree
 			[[ -d "$BACKUP" ]] && mv "$BACKUP" "$DIR"
 			if [[ $OLFS -eq 1 ]] && mountpoint -q "$TMP"; then
+				rsync -aogX --delete-after --inplace --no-whole-file --exclude .flagged "$BACK_OVFS/" "$DIR/"
 				umount -l "$TMP"
 				rm -rf "$VOLATILE/asd-$USER" "$VOLATILE/asd-$USER-rw" "$VOLATILE/.asd-$USER" &>/dev/null
 			else
