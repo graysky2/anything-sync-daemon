@@ -26,6 +26,7 @@ fi
 
 # if asd is active, source the snapshot of /etc/asd.conf preferentially
 if [[ -f "${DAEMON_FILE}.conf" ]]; then
+	unset WHATTOSYNC USE_OVERLAYFS USE_BACKUPS VOLATILE
 	ASDCONF="${DAEMON_FILE}.conf"
 	. "$ASDCONF"
 fi
