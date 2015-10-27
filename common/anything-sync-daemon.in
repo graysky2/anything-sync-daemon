@@ -187,8 +187,8 @@ cleanup() {
 		USER=$(stat -c %U "$DIR")
 		GROUP=$(id -g "$USER")
 		TMP="$VOLATILE/asd-$USER$DIR"
-		TMPRW="$VOLATILE/asd-$USER$DIR-rw"
-		TMPWK="$VOLATILE/.asd-$USER$DIR"
+		UPPER="$VOLATILE/asd-$USER$DIR-rw"
+		WORK="$VOLATILE/.asd-$USER$DIR"
 
 		if [[ -d "$DIR" ]]; then
 			ls "$BACKUP"-crashrecovery* &>/dev/null
@@ -224,8 +224,8 @@ do_sync() {
 		USER=$(stat -c %U "$DIR")
 		GROUP=$(id -g "$USER")
 		TMP="$VOLATILE/asd-$USER$DIR"
-		TMPRW="$VOLATILE/asd-$USER$DIR-rw"
-		TMPWK="$VOLATILE/.asd-$USER$DIR"
+		UPPER="$VOLATILE/asd-$USER$DIR-rw"
+		WORK="$VOLATILE/.asd-$USER$DIR"
 
 		# make tmpfs container
 		if [[ -d "$DIR" ]]; then
@@ -235,10 +235,10 @@ do_sync() {
 
 			if [[ $OLFS -eq 1 ]]; then
 				if [[ $OLFSVER -eq 23 ]]; then
-					[[ -r "$TMPRW" ]] || install -dm$PREFIXP --owner="$USER" --group="$GROUP" "$TMPRW"
-					[[ -r "$TMPWK" ]] || install -dm$PREFIXP --owner="$USER" --group="$GROUP" "$TMPWK"
+					[[ -r "$UPPER" ]] || install -dm$PREFIXP --owner="$USER" --group="$GROUP" "$UPPER"
+					[[ -r "$WORK" ]] || install -dm$PREFIXP --owner="$USER" --group="$GROUP" "$WORK"
 				elif [[ $OLFSVER -eq 22 ]]; then
-					[[ -r "$TMPRW" ]] || install -dm$PREFIXP --owner="$USER" --group="$GROUP" "$TMPRW"
+					[[ -r "$UPPER" ]] || install -dm$PREFIXP --owner="$USER" --group="$GROUP" "$UPPER"
 				fi
 			fi
 
@@ -256,9 +256,9 @@ do_sync() {
 				# initial sync
 				if [[ $OLFS -eq 1 ]]; then
 					if [[ $OLFSVER -eq 23 ]]; then
-						mount -t overlay overlaid -olowerdir="$BACKUP",upperdir="$TMPRW",workdir="$TMPWK" "$TMP"
+						mount -t overlay overlaid -olowerdir="$BACKUP",upperdir="$UPPER",workdir="$WORK" "$TMP"
 					elif [[ $OLFSVER -eq 22 ]]; then
-						mount -t overlayfs overlaid -olowerdir="$BACKUP",upperdir="$TMPRW" "$TMP"
+						mount -t overlayfs overlaid -olowerdir="$BACKUP",upperdir="$UPPER" "$TMP"
 					fi
 				else
 					rsync -aogX --inplace --no-whole-file "$BACKUP/" "$TMP/"
@@ -280,8 +280,8 @@ do_unsync() {
 		USER=$(stat -c %U "$DIR")
 		GROUP=$(id -g "$USER")
 		TMP="$VOLATILE/asd-$USER$DIR"
-		TMPRW="$VOLATILE/asd-$USER$DIR-rw"
-		TMPWK="$VOLATILE/.asd-$USER$DIR"
+		UPPER="$VOLATILE/asd-$USER$DIR-rw"
+		WORK="$VOLATILE/.asd-$USER$DIR"
 
 		# remove link and move data from tmpfs to disk
 		if [[ -h "$DIR" ]]; then
@@ -332,8 +332,8 @@ parse() {
 		USER=$(stat -c %U "$DIR")
 		GROUP=$(id -g "$USER")
 		TMP="$VOLATILE/asd-$USER$DIR"
-		TMPRW="$VOLATILE/asd-$USER$DIR-rw"
-		TMPWK="$VOLATILE/.asd-$USER$DIR"
+		UPPER="$VOLATILE/asd-$USER$DIR-rw"
+		WORK="$VOLATILE/.asd-$USER$DIR"
 
 		# sync target dir size
 		psize=$(du -Lh --max-depth=0 "$DIR" 2>/dev/null | awk '{ print $1 }')
@@ -352,7 +352,7 @@ parse() {
 			echo -en " ${BLD}dir size:"
 			echo -e "$(tput cr)$(tput cuf 20) $psize"${NRM}
 			if [[ $OLFS -eq 1 ]]; then
-				rwsize=$(du -Lh --max-depth=0 "$TMPRW" 2>/dev/null | awk '{ print $1 }')
+				rwsize=$(du -Lh --max-depth=0 "$UPPER" 2>/dev/null | awk '{ print $1 }')
 				echo -en " ${BLD}overlayfs size:"
 				echo -e "$(tput cr)$(tput cuf 20) $rwsize"${NRM}
 			fi
