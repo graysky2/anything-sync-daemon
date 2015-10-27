@@ -1,30 +1,34 @@
 DEPENDENCIES
  bash >=4.0
+ cron (only if using upstart)
  rsync
+
+ a supported init system
+ -systemd
+ -upstart
 
 BUILDING
  Setup the via a make.
 
-  $ make
+ $ make
 
- Running a `make install-xxx` as root will distribute the files to
- the file system. Most users will want to select from three options
- depending on target init system (do not run both)!
+ Running a `make install-xxx` as root will distribute the files to the file-
+ system.  Most users will want to select from three options depending on target
+ init system (do not run both)!
 
   # make install-systemd-all
   # make install-upstart-all
 
- As of v3.13, the Makefiles for systemd-native distros such as
- Arch, Exherbo, and Fedora, no longer install the deprecated
- cron script using a systemd timer instead. Users may override
- and install the deprecated cron script by running make with
- `install-with-cron` instead  of `install` at this point.
+ As of v3.13, the Makefiles for systemd-native distros such as Arch, Exherbo,
+ and Fedora, no longer install the deprecated cron script using a systemd
+ timer instead. Users may override and install the deprecated cron script by
+ running make with `install-with-cron` instead  of `install` at this point.
 
 USE A DISTRO PROVIDED PACKAGE
  ARCH LINUX
- Arch users may build the package directly with the provided
- PKGBUILD: https://aur.archlinux.org/packages/anything-sync-daemon
+ Arch users may build the package directly with the provided PKGBUILD:
+ https://aur.archlinux.org/packages/anything-sync-daemon
 
  CHAKRA
- Chakra users may build the package directly with the provided
- PKGBUILD: http://chakra-linux.org/ccr/packages.php?ID=3750
+ Chakra users may build the package directly with the provided PKGBUILD:
+ http://chakraos.org/ccr/packages.php?ID=3750
