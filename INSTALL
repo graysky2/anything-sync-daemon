@@ -7,6 +7,11 @@ DEPENDENCIES
  -systemd
  -upstart
 
+WARNING
+To avoid data loss, it is HIGHLY recommended that users stop any running
+versions of this software before install updates. Internal changes are
+always possible from one release to another.
+
 BUILDING
  Setup the via a make.
 

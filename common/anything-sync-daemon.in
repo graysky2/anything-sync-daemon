@@ -26,6 +26,7 @@ fi
 
 # if asd is active, source the snapshot of /etc/asd.conf preferentially
 if [[ -f "${DAEMON_FILE}.conf" ]]; then
+	unset WHATTOSYNC USE_OVERLAYFS USE_BACKUPS VOLATILE
 	ASDCONF="${DAEMON_FILE}.conf"
 	. "$ASDCONF"
 fi
@@ -157,6 +158,7 @@ ungraceful_state_check() {
 		# did user define a real dir
 		# this is the hdd bound backup in case of power failure
 		BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
+		BACK_OVFS="${DIR%/*}/.${DIR##*/}-back-ovfs"
 		if [[ -d "$BACKUP" ]]; then
 			USER=$(stat -c %U "$BACKUP")
 		else
@@ -169,13 +171,49 @@ ungraceful_state_check() {
 			return
 		else
 			NOW=$(date +%Y%m%d_%H%M%S)
-			[[ -h "$DIR" ]] && unlink "$DIR"
+			if [[ -h "$DIR" ]]; then
+				echo "Ungraceful state detected for $DIR so fixing"
+				unlink "$DIR"
+			fi
+
 			if [[ -d "$BACKUP" ]]; then
-				[[ $CRRE -eq 1 ]] &&
-					cp -a --reflink=auto "$BACKUP" "$BACKUP-crashrecovery-$NOW"
-				mv "$BACKUP" "$DIR"
+				if [[ -d "$BACK_OVFS" ]]; then
+					# always snapshot the most recent of these two dirs...
+					# if using overlayfs $BACK_OVFS and $BACKUP should be compared
+					# against each other to see which is newer and then that should
+					# be what psd snapshots since BACKUP (the lowerdir) is readonly
+					# at the time the user started psd could be many resync cycles
+					# in the past
+
+					BACKUP_TIME=$(stat "$BACKUP" | grep Change | awk '{ print $2,$3 }')
+					BACK_OVFS_TIME=$(stat "$BACK_OVFS" | grep Change | awk '{ print $2,$3 }')
+
+					[[ $(date -d "$BACK_OVFS_TIME" "+%s") -ge $(date -d "$BACKUP_TIME" "+%s") ]] &&
+						TARGETTOKEEP="$BACK_OVFS" ||
+						TARGETTOKEEP="$BACKUP"
+
+					if [[ $CRRE -eq 1 ]]; then
+						opts="-a --reflink=auto"
+						cp $opts "$TARGETTOKEEP" "$BACKUP-crashrecovery-$NOW"
+					fi
+
+					mv "$TARGETTOKEEP" "$DIR"
+					rm -rf "$BACKUP"
+				else
+					# we only find the BACKUP and no BACKOVFS then either the initial resync
+					# never occurred before the crash using overlayfs or we aren't using overlayfs
+					# at all which can be treated the same way
+
+					if [[ $CRRE -eq 1 ]]; then
+						opts="-a --reflink=auto"
+						cp $opts "$BACKUP" "$BACKUP-crashrecovery-$NOW"
+						mv "$BACKUP" "$DIR"
+					fi
+				fi
 			fi
 		fi
+		# if overlayfs was active but is no longer, remove $BACK_OVFS
+		[[ $OLFS -eq 1 ]] || rm -rf "$BACK_OVFS"
 	done
 }
 
@@ -187,8 +225,8 @@ cleanup() {
 		USER=$(stat -c %U "$DIR")
 		GROUP=$(id -g "$USER")
 		TMP="$VOLATILE/asd-$USER$DIR"
-		TMPRW="$VOLATILE/asd-$USER$DIR-rw"
-		TMPWK="$VOLATILE/.asd-$USER$DIR"
+		UPPER="$VOLATILE/asd-$USER$DIR-rw"
+		WORK="$VOLATILE/.asd-$USER$DIR"
 
 		if [[ -d "$DIR" ]]; then
 			ls "$BACKUP"-crashrecovery* &>/dev/null
@@ -221,11 +259,12 @@ do_sync() {
 	for DIR in "${WHATTOSYNC[@]}"; do
 		# this is the hdd bound backup in case of power failure
 		BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
+		BACK_OVFS="${DIR%/*}/.${DIR##*/}-back-ovfs"
 		USER=$(stat -c %U "$DIR")
 		GROUP=$(id -g "$USER")
 		TMP="$VOLATILE/asd-$USER$DIR"
-		TMPRW="$VOLATILE/asd-$USER$DIR-rw"
-		TMPWK="$VOLATILE/.asd-$USER$DIR"
+		UPPER="$VOLATILE/asd-$USER$DIR-rw"
+		WORK="$VOLATILE/.asd-$USER$DIR"
 
 		# make tmpfs container
 		if [[ -d "$DIR" ]]; then
@@ -235,10 +274,10 @@ do_sync() {
 
 			if [[ $OLFS -eq 1 ]]; then
 				if [[ $OLFSVER -eq 23 ]]; then
-					[[ -r "$TMPRW" ]] || install -dm$PREFIXP --owner="$USER" --group="$GROUP" "$TMPRW"
-					[[ -r "$TMPWK" ]] || install -dm$PREFIXP --owner="$USER" --group="$GROUP" "$TMPWK"
+					[[ -r "$UPPER" ]] || install -dm$PREFIXP --owner="$USER" --group="$GROUP" "$UPPER"
+					[[ -r "$WORK" ]] || install -dm$PREFIXP --owner="$USER" --group="$GROUP" "$WORK"
 				elif [[ $OLFSVER -eq 22 ]]; then
-					[[ -r "$TMPRW" ]] || install -dm$PREFIXP --owner="$USER" --group="$GROUP" "$TMPRW"
+					[[ -r "$UPPER" ]] || install -dm$PREFIXP --owner="$USER" --group="$GROUP" "$UPPER"
 				fi
 			fi
 
@@ -251,14 +290,18 @@ do_sync() {
 
 			# sync the tmpfs targets to the disc
 			if [[ -e "$TMP"/.flagged ]]; then
-				rsync -aogX --delete-after --inplace --no-whole-file --exclude .flagged "$DIR/" "$BACKUP/"
+				if [[ $OLFS -eq 1 ]]; then
+					rsync -aogX --delete-after --inplace --no-whole-file --exclude .flagged "$DIR/" "$BACK_OVFS/"
+				else
+					rsync -aogX --delete-after --inplace --no-whole-file --exclude .flagged "$DIR/" "$BACKUP/"
+				fi
 			else
 				# initial sync
 				if [[ $OLFS -eq 1 ]]; then
 					if [[ $OLFSVER -eq 23 ]]; then
-						mount -t overlay overlaid -olowerdir="$BACKUP",upperdir="$TMPRW",workdir="$TMPWK" "$TMP"
+						mount -t overlay overlaid -olowerdir="$BACKUP",upperdir="$UPPER",workdir="$WORK" "$TMP"
 					elif [[ $OLFSVER -eq 22 ]]; then
-						mount -t overlayfs overlaid -olowerdir="$BACKUP",upperdir="$TMPRW" "$TMP"
+						mount -t overlayfs overlaid -olowerdir="$BACKUP",upperdir="$UPPER" "$TMP"
 					fi
 				else
 					rsync -aogX --inplace --no-whole-file "$BACKUP/" "$TMP/"
@@ -277,11 +320,12 @@ do_unsync() {
 	for DIR in "${WHATTOSYNC[@]}"; do
 		# this is the hdd bound backup in case of power failure
 		BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
+		BACK_OVFS="${DIR%/*}/.${DIR##*/}-back-ovfs"
 		USER=$(stat -c %U "$DIR")
 		GROUP=$(id -g "$USER")
 		TMP="$VOLATILE/asd-$USER$DIR"
-		TMPRW="$VOLATILE/asd-$USER$DIR-rw"
-		TMPWK="$VOLATILE/.asd-$USER$DIR"
+		UPPER="$VOLATILE/asd-$USER$DIR-rw"
+		WORK="$VOLATILE/.asd-$USER$DIR"
 
 		# remove link and move data from tmpfs to disk
 		if [[ -h "$DIR" ]]; then
@@ -292,6 +336,7 @@ do_unsync() {
 			# restore original dirtree
 			[[ -d "$BACKUP" ]] && mv "$BACKUP" "$DIR"
 			if [[ $OLFS -eq 1 ]] && mountpoint -q "$TMP"; then
+				rsync -aogX --delete-after --inplace --no-whole-file --exclude .flagged "$BACK_OVFS/" "$DIR/"
 				umount -l "$TMP"
 				rm -rf "$VOLATILE/asd-$USER" "$VOLATILE/asd-$USER-rw" "$VOLATILE/.asd-$USER" &>/dev/null
 			else
@@ -332,8 +377,8 @@ parse() {
 		USER=$(stat -c %U "$DIR")
 		GROUP=$(id -g "$USER")
 		TMP="$VOLATILE/asd-$USER$DIR"
-		TMPRW="$VOLATILE/asd-$USER$DIR-rw"
-		TMPWK="$VOLATILE/.asd-$USER$DIR"
+		UPPER="$VOLATILE/asd-$USER$DIR-rw"
+		WORK="$VOLATILE/.asd-$USER$DIR"
 
 		# sync target dir size
 		psize=$(du -Lh --max-depth=0 "$DIR" 2>/dev/null | awk '{ print $1 }')
@@ -352,7 +397,7 @@ parse() {
 			echo -en " ${BLD}dir size:"
 			echo -e "$(tput cr)$(tput cuf 20) $psize"${NRM}
 			if [[ $OLFS -eq 1 ]]; then
-				rwsize=$(du -Lh --max-depth=0 "$TMPRW" 2>/dev/null | awk '{ print $1 }')
+				rwsize=$(du -Lh --max-depth=0 "$UPPER" 2>/dev/null | awk '{ print $1 }')
 				echo -en " ${BLD}overlayfs size:"
 				echo -e "$(tput cr)$(tput cuf 20) $rwsize"${NRM}
 			fi
