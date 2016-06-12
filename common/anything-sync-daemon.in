@@ -122,16 +122,24 @@ config_check() {
 		exit 1
 	fi
 
-	# make sure the user defined real dirs and crap out if not
+	# make sure the user defined real dirs
 	for DIR in "${WHATTOSYNC[@]}"; do
 		if [[ ! -d "$DIR" ]]; then
 			BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
 			if [[ ! -d "$BACKUP" ]]; then
 				echo -e "${BLD}Bad entry in your WHATTOSYNC array detected:"${NRM}
-				echo -e "${BLD}${RED}$DIR"${NRM}
+				echo -e " ${BLD}${RED}$DIR"${NRM}
 				echo -e "${BLD}Edit ${BLU}$ASDCONF${NRM}${BLD} correcting the mistake and try again."${NRM}
 				exit 1
 			fi
+		fi
+		
+		# no trailing slashes are allowed
+		if [[ "${DIR: -1}" = "/" ]]; then
+			echo -e "${BLD}Trailing slash in your WHATTOSYNC array detected:"${NRM}
+			echo -e " ${BLD}${RED}$DIR"${NRM}
+			echo -e "${BLD}Edit ${BLU}$ASDCONF${NRM}${BLD} removing the trailing slash and try again."${NRM}
+			exit 1
 		fi
 	done
 }
@@ -420,10 +428,10 @@ parse() {
 
 case "$1" in
 	p|P|Parse|parse|Preview|preview|debug)
-		dep_check && config_check && header && parse
+		header && dep_check && config_check && parse
 		;;
 	c|C|clean|Clean)
-		dep_check && config_check && header && cleanup
+		header && dep_check && config_check && cleanup
 		;;
 	sync)
 		[[ ! -f "$DAEMON_FILE" ]] && root_check && dep_check && config_check &&
