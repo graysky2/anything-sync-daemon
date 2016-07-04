@@ -17,6 +17,18 @@ DAEMON_FILE=${DAEMON_FILE:-"/run/asd"}
 
 # Setup check /etc/asd.conf
 if [[ -f /etc/asd.conf ]]; then
+	if [[ ! -f "$DAEMON_FILE" ]]; then
+		# do nothing if asd is currently running, otherwise
+		# make sure only comments and variables/arrays are defined to prevent
+		# problems
+		if egrep -q -v '^$|^#|^[^ ]*=[^;]*' "$ASDCONF"; then
+			# something that isn't a blank line, comment, or variable present so exit
+			echo -e " ${RED}ERROR:${NRM}${BLD} Syntax error(s) detected in ${BLU}$ASDCONF"${NRM}
+			echo -e "${NRM}${BLD}Line number: offending comment"${NRM}
+			egrep -vn '^$|^#|^[^ ]*=[^;]*' "$ASDCONF"
+			exit 1
+		fi
+	fi
 	. "$ASDCONF"
 else
 	echo -e " ${BLD}Cannot find $ASDCONF so bailing."${NRM}
