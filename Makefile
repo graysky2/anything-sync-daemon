@@ -35,7 +35,7 @@ install-bin: common/$(PN)
 	$(Q)echo -e '\033[1;32mInstalling main script...\033[0m'
 	$(INSTALL_DIR) "$(DESTDIR)$(BINDIR)"
 	$(INSTALL_PROGRAM) common/$(PN) "$(DESTDIR)$(BINDIR)/$(PN)"
-	ln -s $(PN) "$(DESTDIR)$(BINDIR)/asd"
+	ln -sf $(PN) "$(DESTDIR)$(BINDIR)/asd"
 	$(INSTALL_DIR) "$(DESTDIR)$(ZSHDIR)"
 	$(INSTALL_DATA) common/zsh-completion "$(DESTDIR)/$(ZSHDIR)/_asd"
 	$(INSTALL_DIR) "$(DESTDIR)$(BSHDIR)"
@@ -47,9 +47,9 @@ install-man:
 	$(INSTALL_DATA) doc/asd.1 "$(DESTDIR)$(MANDIR)/asd.1"
 ifneq ($(COMPRESS_MAN),0)
 	gzip -9 "$(DESTDIR)$(MANDIR)/asd.1"
-	ln -s asd.1.gz "$(DESTDIR)$(MANDIR)/$(PN).1.gz"
+	ln -sf asd.1.gz "$(DESTDIR)$(MANDIR)/$(PN).1.gz"
 else
-	ln -s asd.1 "$(DESTDIR)$(MANDIR)/$(PN).1"
+	ln -sf asd.1 "$(DESTDIR)$(MANDIR)/$(PN).1"
 endif
 
 install-cron:
