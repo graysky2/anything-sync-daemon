@@ -21,11 +21,11 @@ if [[ -f /etc/asd.conf ]]; then
 		# do nothing if asd is currently running, otherwise
 		# make sure only comments and variables/arrays are defined to prevent
 		# problems
-		if egrep -qv "^$|^#|^'|^)|^[^ ]*=[^;]*" "$ASDCONF"; then
+		if egrep -qv "^$|^#|^'|^\)|^[^ ]*=[^;]*" "$ASDCONF"; then
 			# something that isn't a blank line, comment, or variable present so exit
 			echo -e " ${RED}ERROR:${NRM}${BLD} Syntax error(s) detected in ${BLU}$ASDCONF"${NRM}
 			echo -e "${NRM}${BLD}Line number: offending comment"${NRM}
-			egrep -vn "^$|^#|^'|^)|^[^ ]*=[^;]*" "$ASDCONF"
+			egrep -vn "^$|^#|^'|^\)|^[^ ]*=[^;]*" "$ASDCONF"
 			exit 1
 		fi
 	fi
