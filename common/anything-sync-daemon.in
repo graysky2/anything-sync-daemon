@@ -401,7 +401,7 @@ parse() {
 		WORK="$VOLATILE/.asd-$USER$DIR"
 
 		# sync target dir size
-		psize=$(du -Lh --max-depth=0 "$DIR" 2>/dev/null | awk '{ print $1 }')
+		psize=$(du -Dh --max-depth=0 "$DIR" 2>/dev/null | awk '{ print $1 }')
 		if [[ -d "$DIR" ]]; then
 			# first count up any crashrecovery dirs
 			ls "$BACKUP"-crashrecovery* &>/dev/null
@@ -417,7 +417,7 @@ parse() {
 			echo -en " ${BLD}dir size:"
 			echo -e "$(tput cr)$(tput cuf 20) $psize"${NRM}
 			if [[ $OLFS -eq 1 ]]; then
-				rwsize=$(du -Lh --max-depth=0 "$UPPER" 2>/dev/null | awk '{ print $1 }')
+				rwsize=$(du -Dh --max-depth=0 "$UPPER" 2>/dev/null | awk '{ print $1 }')
 				echo -en " ${BLD}overlayfs size:"
 				echo -e "$(tput cr)$(tput cuf 20) $rwsize"${NRM}
 			fi
@@ -427,7 +427,7 @@ parse() {
 			else
 				echo -e "$(tput cr)$(tput cuf 20) ${RED}${#CRASHArr[@]}${NRM}${BLD} <- delete with the c option"${NRM}
 				for backup in "${CRASHArr[@]}"; do
-					psize=$(du -Lh --max-depth=0 "$backup" 2>/dev/null | awk '{ print $1 }')
+					psize=$(du -Dh --max-depth=0 "$backup" 2>/dev/null | awk '{ print $1 }')
 					echo -en " ${BLD} dir path/size:"
 					echo -e "$(tput cr)$(tput cuf 20) ${BLU}$backup ${NRM}${BLD}($psize)"${NRM} 
 				done
