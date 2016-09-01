@@ -137,6 +137,7 @@ config_check() {
 	# make sure the user defined real dirs
 	for DIR in "${WHATTOSYNC[@]}"; do
 		if [[ ! -d "$DIR" ]]; then
+		[[ ${DIR##*/} == .* ]] && BACKUP="${DIR%/*}/${DIR##*/}-backup_asd" ||
 			BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
 			if [[ ! -d "$BACKUP" ]]; then
 				echo -e "${BLD}Bad entry in your WHATTOSYNC array detected:"${NRM}
@@ -177,7 +178,9 @@ ungraceful_state_check() {
 	for DIR in "${WHATTOSYNC[@]}"; do
 		# did user define a real dir
 		# this is the hdd bound backup in case of power failure
-		BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
+		[[ ${DIR##*/} == .* ]] && BACKUP="${DIR%/*}/${DIR##*/}-backup_asd" ||
+			BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
+		[[ ${DIR##*/} == .* ]] && BACK_OVFS="${DIR%/*}/${DIR##*/}-back-ovfs" ||
 		BACK_OVFS="${DIR%/*}/.${DIR##*/}-back-ovfs"
 		if [[ -d "$BACKUP" ]]; then
 			USER=$(stat -c %U "$BACKUP")
@@ -241,7 +244,8 @@ cleanup() {
 	local DIR USER GROUP BACKUP TMP
 	for DIR in "${WHATTOSYNC[@]}"; do
 		# this is the hdd bound backup in case of power failure
-		BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
+		[[ ${DIR##*/} == .* ]] && BACKUP="${DIR%/*}/${DIR##*/}-backup_asd" ||
+			BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
 		USER=$(stat -c %U "$DIR")
 		GROUP=$(id -g "$USER")
 		TMP="$VOLATILE/asd-$USER$DIR"
@@ -278,7 +282,9 @@ do_sync() {
 	local DIR USER GROUP BACKUP TMP
 	for DIR in "${WHATTOSYNC[@]}"; do
 		# this is the hdd bound backup in case of power failure
-		BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
+		[[ ${DIR##*/} == .* ]] && BACKUP="${DIR%/*}/${DIR##*/}-backup_asd" ||
+			BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
+		[[ ${DIR##*/} == .* ]] && BACK_OVFS="${DIR%/*}/${DIR##*/}-back-ovfs" ||
 		BACK_OVFS="${DIR%/*}/.${DIR##*/}-back-ovfs"
 		USER=$(stat -c %U "$DIR")
 		GROUP=$(id -g "$USER")
@@ -339,7 +345,9 @@ do_unsync() {
 	local DIR USER BACKUP TMP
 	for DIR in "${WHATTOSYNC[@]}"; do
 		# this is the hdd bound backup in case of power failure
-		BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
+		[[ ${DIR##*/} == .* ]] && BACKUP="${DIR%/*}/${DIR##*/}-backup_asd" ||
+			BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
+		[[ ${DIR##*/} == .* ]] && BACK_OVFS="${DIR%/*}/${DIR##*/}-back-ovfs" ||
 		BACK_OVFS="${DIR%/*}/.${DIR##*/}-back-ovfs"
 		USER=$(stat -c %U "$DIR")
 		GROUP=$(id -g "$USER")
@@ -393,7 +401,8 @@ parse() {
 	local DIR USER GROUP BACKUP TMP
 	for DIR in "${WHATTOSYNC[@]}"; do
 		# this is the hdd bound backup in case of power failure
-		BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
+		[[ ${DIR##*/} == .* ]] && BACKUP="${DIR%/*}/${DIR##*/}-backup_asd" ||
+			BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
 		USER=$(stat -c %U "$DIR")
 		GROUP=$(id -g "$USER")
 		TMP="$VOLATILE/asd-$USER$DIR"
