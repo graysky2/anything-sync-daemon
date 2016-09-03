@@ -51,6 +51,7 @@ shopt -s extglob
 
 # removing any trailing slash(es) from the list of directories to sync
 WHATTOSYNC=("${WHATTOSYNC[@]%%+(/)}")
+VOLATILE="${VOLATILE%%+(/)}"
 
 # setting everything back
 $previous_extglob_setting
