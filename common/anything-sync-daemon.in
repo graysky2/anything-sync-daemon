@@ -43,6 +43,20 @@ if [[ -f "${DAEMON_FILE}.conf" ]]; then
 	. "$ASDCONF"
 fi
 
+# saving current extended pattern matching setting
+previous_extglob_setting=$(shopt -p extglob)
+
+# ensuring pattern matching is enabled
+shopt -s extglob
+
+# removing any trailing slash(es) from the list of directories to sync
+WHATTOSYNC=("${WHATTOSYNC[@]%%+(/)}")
+
+# setting everything back
+$previous_extglob_setting
+unset previous_extglob_setting
+
+
 [[ -z "$VOLATILE" ]] && VOLATILE=/tmp
 
 # simple function to determine user intent rather than using a null value
@@ -145,14 +159,6 @@ config_check() {
 				echo -e "${BLD}Edit ${BLU}$ASDCONF${NRM}${BLD} correcting the mistake and try again."${NRM}
 				exit 1
 			fi
-		fi
-		
-		# no trailing slashes are allowed
-		if [[ "${DIR: -1}" = "/" ]]; then
-			echo -e "${BLD}Trailing slash in your WHATTOSYNC array detected:"${NRM}
-			echo -e " ${BLD}${RED}$DIR"${NRM}
-			echo -e "${BLD}Edit ${BLU}$ASDCONF${NRM}${BLD} removing the trailing slash and try again."${NRM}
-			exit 1
 		fi
 	done
 }
