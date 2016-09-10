@@ -120,6 +120,7 @@ else
 	fi
 fi
 
+
 header() {
 	[[ -z "$distro" ]] && echo -e "${BLD}Anything-sync-daemon v$VERS"${NRM} ||
 		echo -e "${BLD}Anything-sync-daemon v$VERS${NRM}${BLD} on $distro"${NRM}
@@ -152,8 +153,8 @@ config_check() {
 	# make sure the user defined real dirs
 	for DIR in "${WHATTOSYNC[@]}"; do
 		if [[ ! -d "$DIR" ]]; then
-		[[ ${DIR##*/} == .* ]] && BACKUP="${DIR%/*}/${DIR##*/}-backup_asd" ||
-			BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
+			[[ ${DIR##*/} == .* ]] && BACKUP="${DIR%/*}/${DIR##*/}-backup_asd" ||
+				BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
 			if [[ ! -d "$BACKUP" ]]; then
 				echo -e "${BLD}Bad entry in your WHATTOSYNC array detected:"${NRM}
 				echo -e " ${BLD}${RED}$DIR"${NRM}
@@ -226,7 +227,6 @@ ungraceful_state_check() {
 						opts="-a --reflink=auto"
 						cp $opts "$TARGETTOKEEP" "$BACKUP-crashrecovery-$NOW"
 					fi
-
 					mv --no-target-directory "$TARGETTOKEEP" "$DIR"
 					rm -rf "$BACKUP"
 				else
@@ -303,6 +303,7 @@ do_sync() {
 		if [[ -d "$DIR" ]]; then
 			# retain permissions on sync target
 			PREFIXP=$(stat -c %a "$DIR")
+
 			[[ -r "$TMP" ]] || install -dm$PREFIXP --owner="$USER" --group="$GROUP" "$TMP"
 
 			if [[ $OLFS -eq 1 ]]; then
