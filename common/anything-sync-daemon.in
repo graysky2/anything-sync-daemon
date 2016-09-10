@@ -315,13 +315,6 @@ do_sync() {
 				fi
 			fi
 
-			# backup target and link to tmpfs container
-			if [[ $(readlink "$DIR") != "$TMP" ]]; then
-				mv --no-target-directory "$DIR" "$BACKUP"
-				ln -s "$TMP" "$DIR"
-				chown -h "$USER":"$GROUP" "$DIR"
-			fi
-
 			# sync the tmpfs targets to the disc
 			if [[ -e "$TMP"/.flagged ]]; then
 				if [[ $OLFS -eq 1 ]]; then
@@ -329,8 +322,12 @@ do_sync() {
 				else
 					rsync -aogX --delete-after --inplace --no-whole-file --exclude .flagged "$DIR/" "$BACKUP/"
 				fi
-			else
-				# initial sync
+			else # initial sync
+
+				# bind mounting the target to the backup location
+				install -dm$PREFIXP --owner="$USER" --group="$GROUP" "$BACKUP"
+				mount --rbind --make-private "$DIR" "$BACKUP"
+
 				if [[ $OLFS -eq 1 ]]; then
 					if [[ $OLFSVER -eq 23 ]]; then
 						mount -t overlay overlaid -olowerdir="$BACKUP",upperdir="$UPPER",workdir="$WORK" "$TMP"
@@ -340,6 +337,10 @@ do_sync() {
 				else
 					rsync -aogX --inplace --no-whole-file "$BACKUP/" "$TMP/"
 				fi
+
+				# bind mounting the tmpfs dir on top of the target
+				mount --rbind --make-private "$TMP" "$DIR"
+
 				touch "$DIR"/.flagged
 			fi
 		fi
@@ -363,22 +364,19 @@ do_unsync() {
 		UPPER="$VOLATILE/asd-$USER$DIR-rw"
 		WORK="$VOLATILE/.asd-$USER$DIR"
 
-		# remove link and move data from tmpfs to disk
-		if [[ -h "$DIR" ]]; then
-			unlink "$DIR"
-			# this assumes that the backup is always
-			# updated so be sure to invoke a sync before an unsync
-
-			# restore original dirtree
-			[[ -d "$BACKUP" ]] && mv --no-target-directory "$BACKUP" "$DIR"
-			if [[ $OLFS -eq 1 ]] && mountpoint -q "$TMP"; then
-				rsync -aogX --delete-after --inplace --no-whole-file --exclude .flagged "$BACK_OVFS/" "$DIR/"
-				umount -l "$TMP"
-				rm -rf "$VOLATILE/asd-$USER" "$VOLATILE/asd-$USER-rw" "$VOLATILE/.asd-$USER" &>/dev/null
-			else
-				[[ -d "$TMP" ]] && rm -rf "$VOLATILE/asd-$USER"
-			fi
+		# unmounting everything and deleting tmpfs
+		# this assumes that the backup is always
+		# updated so be sure to invoke a sync before an unsync
+		umount -l "$DIR"
+		if [[ $OLFS -eq 1 ]] && mountpoint -q "$TMP"; then
+			rsync -aogX --delete-after --inplace --no-whole-file --exclude .flagged "$BACK_OVFS/" "$DIR/"
+			umount -l "$TMP"
+			rm -rf "$VOLATILE/asd-$USER" "$VOLATILE/asd-$USER-rw" "$VOLATILE/.asd-$USER" &>/dev/null
+		else
+			[[ -d "$TMP" ]] && rm -rf "$VOLATILE/asd-$USER"
 		fi
+		umount -l "$BACKUP"
+		rmdir "$BACKUP"
 	done
 	echo -e "${BLD}Unsync successful"${NRM}
 }
@@ -464,7 +462,7 @@ case "$1" in
 		;;
 	sync)
 		[[ ! -f "$DAEMON_FILE" ]] && root_check && dep_check && config_check &&
-			ungraceful_state_check && do_sync
+			do_sync
 		;;
 	resync)
 		[[ -f "$DAEMON_FILE" ]] && root_check && do_sync
