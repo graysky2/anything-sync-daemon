@@ -200,50 +200,48 @@ ungraceful_state_check() {
 		if [[ -e "$TMP"/.flagged ]]; then
 			# all is well so continue
 			return
-		else
+		elif [[ -d "$BACKUP" ]]; then
 			NOW=$(date +%Y%m%d_%H%M%S)
-			echo "Ungraceful state detected for $DIR"
-			echo "Fixing, please wait..." >&2
+			echo "Ungraceful state detected for $DIR, so fixing"
 
-			if [[ -d "$BACKUP" ]]; then
-				if [[ -d "$BACK_OVFS" ]]; then
-					# always snapshot the most recent of these two dirs...
-					# if using overlayfs $BACK_OVFS and $BACKUP should be compared
-					# against each other to see which is newer and then that should
-					# be what asd snapshots since $BACKUP (the lowerdir) is readonly
-					# at the time the user started asd, and could be many resync cycles
-					# in the past
-					# Because we're using bind mounts, $BACKUP was only reflecting
-					# the contents of the original $DIR and will be empty
-					# when recovering from ungraceful state.
-					# Thus we have to get the contents directly from $DIR
+			if [[ -d "$BACK_OVFS" ]]; then
+				# always snapshot the most recent of these two dirs...
+				# if using overlayfs $BACK_OVFS and $BACKUP should be compared
+				# against each other to see which is newer and then that should
+				# be what asd snapshots since $BACKUP (the lowerdir) is readonly
+				# at the time the user started asd, and could be many resync cycles
+				# in the past
+				# Because we're using bind mounts, $BACKUP was only reflecting
+				# the contents of the original $DIR and will be empty
+				# when recovering from ungraceful state.
+				# Thus we have to get the contents directly from $DIR
 
-					BACKUP_TIME=$(stat "$BACKUP" | grep Change | awk '{ print $2,$3 }')
-					BACK_OVFS_TIME=$(stat "$BACK_OVFS" | grep Change | awk '{ print $2,$3 }')
+				BACKUP_TIME=$(stat "$BACKUP" | grep Change | awk '{ print $2,$3 }')
+				BACK_OVFS_TIME=$(stat "$BACK_OVFS" | grep Change | awk '{ print $2,$3 }')
 
-					[[ $(date -d "$BACK_OVFS_TIME" "+%s") -ge $(date -d "$BACKUP_TIME" "+%s") ]] &&
-						TARGETTOKEEP="$BACK_OVFS" ||
-						TARGETTOKEEP="$DIR"
+				[[ $(date -d "$BACK_OVFS_TIME" "+%s") -ge $(date -d "$BACKUP_TIME" "+%s") ]] &&
+					TARGETTOKEEP="$BACK_OVFS" ||
+					TARGETTOKEEP="$DIR"
 
-					if [[ $CRRE -eq 1 ]]; then
-						opts="-a --reflink=auto"
-						cp $opts "$TARGETTOKEEP" "$BACKUP-crashrecovery-$NOW"
-					fi
-					rsync -aogX --delete-after --inplace --no-whole-file --exclude .flagged "$TARGETTOKEEP/" "$DIR/"
-					rm -rf "$BACKUP"
-				else
-					# we only find the BACKUP and no BACKOVFS then either the initial resync
-					# never occurred before the crash using overlayfs or we aren't using overlayfs
-					# at all which can be treated the same way
+				if [[ $CRRE -eq 1 ]]; then
+					opts="-a --reflink=auto"
+					cp $opts "$TARGETTOKEEP" "$BACKUP-crashrecovery-$NOW"
+				fi
+				rsync -aogX --delete-after --inplace --no-whole-file --exclude .flagged "$TARGETTOKEEP/" "$DIR/"
+				
+			else
+				# we only find the BACKUP and no BACKOVFS then either the initial resync
+				# never occurred before the crash using overlayfs or we aren't using overlayfs
+				# at all which can be treated the same way
 
-					if [[ $CRRE -eq 1 ]]; then
-						opts="-a --reflink=auto"
-						cp $opts "$DIR" "$BACKUP-crashrecovery-$NOW"
-						rm -rf "$BACKUP"
-					fi
+				if [[ $CRRE -eq 1 ]]; then
+					opts="-a --reflink=auto"
+					cp $opts "$DIR" "$BACKUP-crashrecovery-$NOW"
 				fi
 			fi
+			rm -rf "$BACKUP"
 		fi
+
 		# if overlayfs was active but is no longer, remove $BACK_OVFS
 		[[ $OLFS -eq 1 ]] || rm -rf "$BACK_OVFS"
 	done
