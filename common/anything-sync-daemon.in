@@ -178,10 +178,16 @@ root_check() {
 }
 
 ungraceful_state_check() {
-	# if the machine was ungracefully shutdown then the backup will be
-	# on the filesystem and the link to tmpfs will be on the filesystem
-	# but the contents will be empty we need to simply remove the link
-	# and rotate the backup into place
+	# if the machine was ungracefully shutdown
+	# then the backup folders will remain,
+	# but the mounts and tmpfs won't.
+	# This leaves the target directories in the state of the last sync
+	# so they're usable as is, but data may have been lost.
+	# We may not be able to recover that data,
+	# but at least we can take a snapshot of the current state for the record.
+	# Besides, if using overlayfs technology,
+	# we do need to restore from the upper directory backup.
+
 	local DIR USER BACKUP TMP
 	for DIR in "${WHATTOSYNC[@]}"; do
 		# did user define a real dir
@@ -468,7 +474,7 @@ case "$1" in
 		[[ -f "$DAEMON_FILE" ]] && root_check && do_sync
 		;;
 	unsync)
-		# make sure the daemon ran to setup the links
+		# make sure the daemon ran to setup the bind mounts
 		[[ -f "$DAEMON_FILE" ]] && root_check && do_sync && do_unsync
 		;;
 	*)
@@ -486,16 +492,16 @@ case "$1" in
 			echo -e " ${BLD}Instead, use systemd to start/stop anything-sync-daemon."${NRM}
 			echo
 			echo -e " ${BLD}systemctl ${NRM}${GRN}[option]${NRM}${BLD} asd asd-resync"${NRM}
-			echo -e " ${BLD} ${NRM}${GRN}start${NRM}${BLD}    Turn on daemon; make symlinks and actively manage targets in tmpfs."${NRM}
-			echo -e " ${BLD} ${NRM}${GRN}stop${NRM}${BLD}   Turn off daemon; remove symlinks and rotate tmpfs data back to disc."${NRM}
+			echo -e " ${BLD} ${NRM}${GRN}start${NRM}${BLD}    Turn on daemon; make bind mounts and actively manage targets in tmpfs."${NRM}
+			echo -e " ${BLD} ${NRM}${GRN}stop${NRM}${BLD}   Turn off daemon; undo bind mounts and rotate tmpfs data back to disc."${NRM}
 			echo -e " ${BLD} ${NRM}${GRN}enable${NRM}${BLD} Autostart daemon when system comes up."${NRM}
 			echo -e " ${BLD} ${NRM}${GRN}disable${NRM}${BLD}  Remove daemon from the list of autostart daemons."${NRM}
 		elif [[ -f /etc/init.d/asd ]]; then
 			echo -e " ${BLD}Instead, use the init system to start/stop anything-sync-daemon."${NRM}
 			echo
 			echo -e " ${BLD}sudo service asd ${NRM}${GRN}[option]${NRM}${BLD} or /etc/init.d/asd ${NRM}${GRN}[option]"${NRM}
-			echo -e " ${BLD} ${NRM}${GRN}start${NRM}${BLD}  Turn on daemon; make symlinks and actively manage targets in tmpfs."${NRM}
-			echo -e " ${BLD} ${NRM}${GRN}stop${NRM}${BLD} Turn off daemon; remove symlinks and rotate tmpfs data back to disc."${NRM}
+			echo -e " ${BLD} ${NRM}${GRN}start${NRM}${BLD}  Turn on daemon; make bind mounts and actively manage targets in tmpfs."${NRM}
+			echo -e " ${BLD} ${NRM}${GRN}stop${NRM}${BLD} Turn off daemon; undo bind mounts and rotate tmpfs data back to disc."${NRM}
 		fi
 		;;
 esac
