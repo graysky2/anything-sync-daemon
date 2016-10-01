@@ -1,6 +1,7 @@
 DEPENDENCIES
  bash >=4.0
  cron (only if using upstart)
+ find
  rsync
 
  a supported init system

@@ -152,8 +152,8 @@ config_check() {
 	# make sure the user defined real dirs
 	for DIR in "${WHATTOSYNC[@]}"; do
 		if [[ ! -d "$DIR" ]]; then
-		[[ ${DIR##*/} == .* ]] && BACKUP="${DIR%/*}/${DIR##*/}-backup_asd" ||
-			BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
+			[[ ${DIR##*/} == .* ]] && BACKUP="${DIR%/*}/${DIR##*/}-backup_asd" ||
+				BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
 			if [[ ! -d "$BACKUP" ]]; then
 				echo -e "${BLD}Bad entry in your WHATTOSYNC array detected:"${NRM}
 				echo -e " ${BLD}${RED}$DIR"${NRM}
@@ -188,7 +188,7 @@ ungraceful_state_check() {
 		[[ ${DIR##*/} == .* ]] && BACKUP="${DIR%/*}/${DIR##*/}-backup_asd" ||
 			BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
 		[[ ${DIR##*/} == .* ]] && BACK_OVFS="${DIR%/*}/${DIR##*/}-back-ovfs" ||
-		BACK_OVFS="${DIR%/*}/.${DIR##*/}-back-ovfs"
+			BACK_OVFS="${DIR%/*}/.${DIR##*/}-back-ovfs"
 		if [[ -d "$BACKUP" ]]; then
 			USER=$(stat -c %U "$BACKUP")
 		else
@@ -258,22 +258,19 @@ cleanup() {
 		TMP="$VOLATILE/asd-$USER$DIR"
 		UPPER="$VOLATILE/asd-$USER$DIR-rw"
 		WORK="$VOLATILE/.asd-$USER$DIR"
+		CRASHArr=( $(find "${BACKUP%/*}" -type d -name '*crashrecovery*' 2>/dev/null) )
 
-		if [[ -d "$DIR" ]]; then
-			ls "$BACKUP"-crashrecovery* &>/dev/null
-			if [[ $? -eq 0  ]]; then
-				CRASHArr=("$BACKUP"-crashrecovery*)
-				echo -e ${BLD}"Deleting ${#CRASHArr[@]} crashrecovery dir(s) for sync target ${BLU}$DIR"${NRM}
-				for backup in "${CRASHArr[@]}"; do
-					echo -e ${BLD}${RED}" $backup"${NRM}
-					rm -rf "$backup"
-				done
-				unset CRASHArr
-			else
-				echo -e ${BLD}"Found no crashrecovery dirs for: ${BLU}$DIR${NRM}${BLD}"${NRM}
-			fi
-			echo
+		if [[ ${#CRASHArr[@]} -gt 0 ]]; then
+			echo -e ${BLD}"Deleting ${#CRASHArr[@]} crashrecovery dir(s) for sync target ${BLU}$DIR"${NRM}
+			for backup in "${CRASHArr[@]}"; do
+				echo -e ${BLD}${RED}" $backup"${NRM}
+				rm -rf "$backup"
+			done
+			unset CRASHArr
+		else
+			echo -e ${BLD}"Found no crashrecovery dirs for: ${BLU}$DIR${NRM}${BLD}"${NRM}
 		fi
+		echo
 	done
 }
 
@@ -292,7 +289,7 @@ do_sync() {
 		[[ ${DIR##*/} == .* ]] && BACKUP="${DIR%/*}/${DIR##*/}-backup_asd" ||
 			BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
 		[[ ${DIR##*/} == .* ]] && BACK_OVFS="${DIR%/*}/${DIR##*/}-back-ovfs" ||
-		BACK_OVFS="${DIR%/*}/.${DIR##*/}-back-ovfs"
+			BACK_OVFS="${DIR%/*}/.${DIR##*/}-back-ovfs"
 		USER=$(stat -c %U "$DIR")
 		GROUP=$(id -g "$USER")
 		TMP="$VOLATILE/asd-$USER$DIR"
@@ -355,7 +352,7 @@ do_unsync() {
 		[[ ${DIR##*/} == .* ]] && BACKUP="${DIR%/*}/${DIR##*/}-backup_asd" ||
 			BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
 		[[ ${DIR##*/} == .* ]] && BACK_OVFS="${DIR%/*}/${DIR##*/}-back-ovfs" ||
-		BACK_OVFS="${DIR%/*}/.${DIR##*/}-back-ovfs"
+			BACK_OVFS="${DIR%/*}/.${DIR##*/}-back-ovfs"
 		USER=$(stat -c %U "$DIR")
 		GROUP=$(id -g "$USER")
 		TMP="$VOLATILE/asd-$USER$DIR"
@@ -419,9 +416,7 @@ parse() {
 		# sync target dir size
 		psize=$(du -Dh --max-depth=0 "$DIR" 2>/dev/null | awk '{ print $1 }')
 		if [[ -d "$DIR" ]]; then
-			# first count up any crashrecovery dirs
-			ls "$BACKUP"-crashrecovery* &>/dev/null
-			[[ $? -eq 0  ]] && CRASHArr=("$BACKUP"-crashrecovery*)
+			CRASHArr=( $(find "${BACKUP%/*}" -type d -name '*crashrecovery*' 2>/dev/null) )
 			echo -en " ${BLD}owner/group id:"
 			echo -e $(tput cr)$(tput cuf 20) "$USER"/"$GROUP"${NRM}
 			echo -en " ${BLD}target to manage:"
