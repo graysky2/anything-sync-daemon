@@ -120,6 +120,7 @@ else
 	fi
 fi
 
+
 header() {
 	[[ -z "$distro" ]] && echo -e "${BLD}Anything-sync-daemon v$VERS"${NRM} ||
 		echo -e "${BLD}Anything-sync-daemon v$VERS${NRM}${BLD} on $distro"${NRM}
@@ -177,10 +178,16 @@ root_check() {
 }
 
 ungraceful_state_check() {
-	# if the machine was ungracefully shutdown then the backup will be
-	# on the filesystem and the link to tmpfs will be on the filesystem
-	# but the contents will be empty we need to simply remove the link
-	# and rotate the backup into place
+	# if the machine was ungracefully shutdown
+	# then the backup folders will remain,
+	# but the mounts and tmpfs won't.
+	# This leaves the target directories in the state of the last sync
+	# so they're usable as is, but data may have been lost.
+	# We may not be able to recover that data,
+	# but at least we can take a snapshot of the current state for the record.
+	# Besides, if using overlayfs technology,
+	# we do need to restore from the upper directory backup.
+
 	local DIR USER BACKUP TMP
 	for DIR in "${WHATTOSYNC[@]}"; do
 		# did user define a real dir
@@ -199,49 +206,48 @@ ungraceful_state_check() {
 		if [[ -e "$TMP"/.flagged ]]; then
 			# all is well so continue
 			return
-		else
+		elif [[ -d "$BACKUP" ]]; then
 			NOW=$(date +%Y%m%d_%H%M%S)
-			if [[ -h "$DIR" ]]; then
-				echo "Ungraceful state detected for $DIR so fixing"
-				unlink "$DIR"
-			fi
+			echo "Ungraceful state detected for $DIR, so fixing"
 
-			if [[ -d "$BACKUP" ]]; then
-				if [[ -d "$BACK_OVFS" ]]; then
-					# always snapshot the most recent of these two dirs...
-					# if using overlayfs $BACK_OVFS and $BACKUP should be compared
-					# against each other to see which is newer and then that should
-					# be what psd snapshots since BACKUP (the lowerdir) is readonly
-					# at the time the user started psd could be many resync cycles
-					# in the past
+			if [[ -d "$BACK_OVFS" ]]; then
+				# always snapshot the most recent of these two dirs...
+				# if using overlayfs $BACK_OVFS and $BACKUP should be compared
+				# against each other to see which is newer and then that should
+				# be what asd snapshots since $BACKUP (the lowerdir) is readonly
+				# at the time the user started asd, and could be many resync cycles
+				# in the past
+				# Because we're using bind mounts, $BACKUP was only reflecting
+				# the contents of the original $DIR and will be empty
+				# when recovering from ungraceful state.
+				# Thus we have to get the contents directly from $DIR
 
-					BACKUP_TIME=$(stat "$BACKUP" | grep Change | awk '{ print $2,$3 }')
-					BACK_OVFS_TIME=$(stat "$BACK_OVFS" | grep Change | awk '{ print $2,$3 }')
+				BACKUP_TIME=$(stat "$BACKUP" | grep Change | awk '{ print $2,$3 }')
+				BACK_OVFS_TIME=$(stat "$BACK_OVFS" | grep Change | awk '{ print $2,$3 }')
 
-					[[ $(date -d "$BACK_OVFS_TIME" "+%s") -ge $(date -d "$BACKUP_TIME" "+%s") ]] &&
-						TARGETTOKEEP="$BACK_OVFS" ||
-						TARGETTOKEEP="$BACKUP"
+				[[ $(date -d "$BACK_OVFS_TIME" "+%s") -ge $(date -d "$BACKUP_TIME" "+%s") ]] &&
+					TARGETTOKEEP="$BACK_OVFS" ||
+					TARGETTOKEEP="$DIR"
 
-					if [[ $CRRE -eq 1 ]]; then
-						opts="-a --reflink=auto"
-						cp $opts "$TARGETTOKEEP" "$BACKUP-crashrecovery-$NOW"
-					fi
+				if [[ $CRRE -eq 1 ]]; then
+					opts="-a --reflink=auto"
+					cp $opts "$TARGETTOKEEP" "$BACKUP-crashrecovery-$NOW"
+				fi
+				rsync -aogX --delete-after --inplace --no-whole-file --exclude .flagged "$TARGETTOKEEP/" "$DIR/"
+				
+			else
+				# we only find the BACKUP and no BACKOVFS then either the initial resync
+				# never occurred before the crash using overlayfs or we aren't using overlayfs
+				# at all which can be treated the same way
 
-					mv --no-target-directory "$TARGETTOKEEP" "$DIR"
-					rm -rf "$BACKUP"
-				else
-					# we only find the BACKUP and no BACKOVFS then either the initial resync
-					# never occurred before the crash using overlayfs or we aren't using overlayfs
-					# at all which can be treated the same way
-
-					if [[ $CRRE -eq 1 ]]; then
-						opts="-a --reflink=auto"
-						cp $opts "$BACKUP" "$BACKUP-crashrecovery-$NOW"
-						mv --no-target-directory "$BACKUP" "$DIR"
-					fi
+				if [[ $CRRE -eq 1 ]]; then
+					opts="-a --reflink=auto"
+					cp $opts "$DIR" "$BACKUP-crashrecovery-$NOW"
 				fi
 			fi
+			rm -rf "$BACKUP"
 		fi
+
 		# if overlayfs was active but is no longer, remove $BACK_OVFS
 		[[ $OLFS -eq 1 ]] || rm -rf "$BACK_OVFS"
 	done
@@ -300,6 +306,7 @@ do_sync() {
 		if [[ -d "$DIR" ]]; then
 			# retain permissions on sync target
 			PREFIXP=$(stat -c %a "$DIR")
+
 			[[ -r "$TMP" ]] || install -dm$PREFIXP --owner="$USER" --group="$GROUP" "$TMP"
 
 			if [[ $OLFS -eq 1 ]]; then
@@ -311,13 +318,6 @@ do_sync() {
 				fi
 			fi
 
-			# backup target and link to tmpfs container
-			if [[ $(readlink "$DIR") != "$TMP" ]]; then
-				mv --no-target-directory "$DIR" "$BACKUP"
-				ln -s "$TMP" "$DIR"
-				chown -h "$USER":"$GROUP" "$DIR"
-			fi
-
 			# sync the tmpfs targets to the disc
 			if [[ -e "$TMP"/.flagged ]]; then
 				if [[ $OLFS -eq 1 ]]; then
@@ -325,8 +325,12 @@ do_sync() {
 				else
 					rsync -aogX --delete-after --inplace --no-whole-file --exclude .flagged "$DIR/" "$BACKUP/"
 				fi
-			else
-				# initial sync
+			else # initial sync
+
+				# bind mounting the target to the backup location
+				install -dm$PREFIXP --owner="$USER" --group="$GROUP" "$BACKUP"
+				mount --rbind --make-private "$DIR" "$BACKUP"
+
 				if [[ $OLFS -eq 1 ]]; then
 					if [[ $OLFSVER -eq 23 ]]; then
 						mount -t overlay overlaid -olowerdir="$BACKUP",upperdir="$UPPER",workdir="$WORK" "$TMP"
@@ -336,6 +340,10 @@ do_sync() {
 				else
 					rsync -aogX --inplace --no-whole-file "$BACKUP/" "$TMP/"
 				fi
+
+				# bind mounting the tmpfs dir on top of the target
+				mount --rbind --make-private "$TMP" "$DIR"
+
 				touch "$DIR"/.flagged
 			fi
 		fi
@@ -359,22 +367,19 @@ do_unsync() {
 		UPPER="$VOLATILE/asd-$USER$DIR-rw"
 		WORK="$VOLATILE/.asd-$USER$DIR"
 
-		# remove link and move data from tmpfs to disk
-		if [[ -h "$DIR" ]]; then
-			unlink "$DIR"
-			# this assumes that the backup is always
-			# updated so be sure to invoke a sync before an unsync
-
-			# restore original dirtree
-			[[ -d "$BACKUP" ]] && mv --no-target-directory "$BACKUP" "$DIR"
-			if [[ $OLFS -eq 1 ]] && mountpoint -q "$TMP"; then
-				rsync -aogX --delete-after --inplace --no-whole-file --exclude .flagged "$BACK_OVFS/" "$DIR/"
-				umount -l "$TMP"
-				rm -rf "$VOLATILE/asd-$USER" "$VOLATILE/asd-$USER-rw" "$VOLATILE/.asd-$USER" &>/dev/null
-			else
-				[[ -d "$TMP" ]] && rm -rf "$VOLATILE/asd-$USER"
-			fi
+		# unmounting everything and deleting tmpfs
+		# this assumes that the backup is always
+		# updated so be sure to invoke a sync before an unsync
+		umount -l "$DIR"
+		if [[ $OLFS -eq 1 ]] && mountpoint -q "$TMP"; then
+			rsync -aogX --delete-after --inplace --no-whole-file --exclude .flagged "$BACK_OVFS/" "$DIR/"
+			umount -l "$TMP"
+			rm -rf "$VOLATILE/asd-$USER" "$VOLATILE/asd-$USER-rw" "$VOLATILE/.asd-$USER" &>/dev/null
+		else
+			[[ -d "$TMP" ]] && rm -rf "$VOLATILE/asd-$USER"
 		fi
+		umount -l "$BACKUP"
+		rmdir "$BACKUP"
 	done
 	echo -e "${BLD}Unsync successful"${NRM}
 }
@@ -464,7 +469,7 @@ case "$1" in
 		[[ -f "$DAEMON_FILE" ]] && root_check && do_sync
 		;;
 	unsync)
-		# make sure the daemon ran to setup the links
+		# make sure the daemon ran to setup the bind mounts
 		[[ -f "$DAEMON_FILE" ]] && root_check && do_sync && do_unsync
 		;;
 	*)
@@ -482,16 +487,16 @@ case "$1" in
 			echo -e " ${BLD}Instead, use systemd to start/stop anything-sync-daemon."${NRM}
 			echo
 			echo -e " ${BLD}systemctl ${NRM}${GRN}[option]${NRM}${BLD} asd asd-resync"${NRM}
-			echo -e " ${BLD} ${NRM}${GRN}start${NRM}${BLD}    Turn on daemon; make symlinks and actively manage targets in tmpfs."${NRM}
-			echo -e " ${BLD} ${NRM}${GRN}stop${NRM}${BLD}   Turn off daemon; remove symlinks and rotate tmpfs data back to disc."${NRM}
+			echo -e " ${BLD} ${NRM}${GRN}start${NRM}${BLD}    Turn on daemon; make bind mounts and actively manage targets in tmpfs."${NRM}
+			echo -e " ${BLD} ${NRM}${GRN}stop${NRM}${BLD}   Turn off daemon; undo bind mounts and rotate tmpfs data back to disc."${NRM}
 			echo -e " ${BLD} ${NRM}${GRN}enable${NRM}${BLD} Autostart daemon when system comes up."${NRM}
 			echo -e " ${BLD} ${NRM}${GRN}disable${NRM}${BLD}  Remove daemon from the list of autostart daemons."${NRM}
 		elif [[ -f /etc/init.d/asd ]]; then
 			echo -e " ${BLD}Instead, use the init system to start/stop anything-sync-daemon."${NRM}
 			echo
 			echo -e " ${BLD}sudo service asd ${NRM}${GRN}[option]${NRM}${BLD} or /etc/init.d/asd ${NRM}${GRN}[option]"${NRM}
-			echo -e " ${BLD} ${NRM}${GRN}start${NRM}${BLD}  Turn on daemon; make symlinks and actively manage targets in tmpfs."${NRM}
-			echo -e " ${BLD} ${NRM}${GRN}stop${NRM}${BLD} Turn off daemon; remove symlinks and rotate tmpfs data back to disc."${NRM}
+			echo -e " ${BLD} ${NRM}${GRN}start${NRM}${BLD}  Turn on daemon; make bind mounts and actively manage targets in tmpfs."${NRM}
+			echo -e " ${BLD} ${NRM}${GRN}stop${NRM}${BLD} Turn off daemon; undo bind mounts and rotate tmpfs data back to disc."${NRM}
 		fi
 		;;
 esac
