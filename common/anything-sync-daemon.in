@@ -43,6 +43,20 @@ if [[ -f "${DAEMON_FILE}.conf" ]]; then
   . "$ASDCONF"
 fi
 
+# define default number of crash-recovery snapshots to save if the user did not
+# and check that it is an integer if user did define it
+if [[ -z "$BACKUP_LIMIT" ]]; then
+  BACKUP_LIMIT=5
+else
+  if [[ "$BACKUP_LIMIT" =~ ^[0-9]+$ ]]; then
+    # correctly setup
+    /bin/true
+  else
+    echo -e " ${RED}ERROR:${NRM}${BLD} Bad value for BACKUP_LIMIT detected!${NRM}"
+    exit 1
+  fi
+fi
+
 # saving current extended pattern matching setting
 previous_extglob_setting=$(shopt -p extglob)
 
@@ -257,7 +271,7 @@ cleanup() {
     TMP="$VOLATILE/asd-$USER$DIR"
     UPPER="$VOLATILE/asd-$USER$DIR-rw"
     WORK="$VOLATILE/.asd-$USER$DIR"
-    CRASHArr=( $(find "${BACKUP%/*}" -type d -name '*crashrecovery*' 2>/dev/null) )
+    CRASHArr=( $(find "${BACKUP%/*}" -type d -name '*crashrecovery*' 2>/dev/null|sort -r) )
 
     if [[ ${#CRASHArr[@]} -gt 0 ]]; then
       echo -e "${BLD}Deleting ${#CRASHArr[@]} crashrecovery dir(s) for sync target ${BLU}$DIR${NRM}"
@@ -270,6 +284,23 @@ cleanup() {
       echo -e "${BLD}Found no crashrecovery dirs for: ${BLU}$DIR${NRM}${BLD}${NRM}"
     fi
     echo
+  done
+}
+
+enforce() {
+  local DIR BACKUP
+  for DIR in "${WHATTOSYNC[@]}"; do
+    # this is the hdd bound backup in case of power failure
+    [[ ${DIR##*/} == .* ]] && BACKUP="${DIR%/*}/${DIR##*/}-backup_asd" ||
+      BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
+    CRASHArr=( $(find "${BACKUP%/*}" -type d -name '*crashrecovery*' 2>/dev/null|sort -r) )
+
+    if [[ ${#CRASHArr[@]} -gt $BACKUP_LIMIT ]]; then
+      for remove in "${CRASHArr[@]:$BACKUP_LIMIT}"; do
+        rm -rf "$remove"
+      done
+    fi
+    unset CRASHArr
   done
 }
 
@@ -415,7 +446,7 @@ parse() {
     # sync target dir size
     psize=$(du -Dh --max-depth=0 "$DIR" 2>/dev/null | awk '{ print $1 }')
     if [[ -d "$DIR" ]]; then
-      CRASHArr=( $(find "${BACKUP%/*}" -type d -name '*crashrecovery*' 2>/dev/null) )
+      CRASHArr=( $(find "${BACKUP%/*}" -type d -name '*crashrecovery*' 2>/dev/null|sort -r) )
       echo -en " ${BLD}owner/group id:"
       echo -e $(tput cr)$(tput cuf 20) "$USER"/"$GROUP${NRM}"
       echo -en " ${BLD}target to manage:"
@@ -450,21 +481,40 @@ parse() {
 
 case "$1" in
   p|P|Parse|parse|Preview|preview|debug)
-    header && dep_check && config_check && parse
+    header
+    dep_check
+    config_check
+    parse
     ;;
   c|C|clean|Clean)
-    header && dep_check && config_check && cleanup
+    header
+    dep_check
+    config_check
+    cleanup
     ;;
   sync)
-    [[ ! -f "$DAEMON_FILE" ]] && root_check && dep_check && config_check &&
-      ungraceful_state_check && do_sync
+    if [[ ! -f "$DAEMON_FILE" ]]; then
+      root_check
+      dep_check
+      config_check
+      ungraceful_state_check
+      do_sync
+      enforce
+    fi
     ;;
   resync)
-    [[ -f "$DAEMON_FILE" ]] && root_check && do_sync
+    if [[ -f "$DAEMON_FILE" ]]; then
+      root_check
+      do_sync
+    fi
     ;;
   unsync)
     # make sure the daemon ran to setup the links
-    [[ -f "$DAEMON_FILE" ]] && root_check && do_sync && do_unsync
+    if [[ -f "$DAEMON_FILE" ]]; then
+      root_check
+      do_sync
+      do_unsync
+    fi
     ;;
   *)
     echo -e "${BLD}Anything-sync-daemon v$VERS${NRM}"
