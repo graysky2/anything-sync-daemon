@@ -71,8 +71,12 @@ VOLATILE="${VOLATILE%%+(/)}"
 $previous_extglob_setting
 unset previous_extglob_setting
 
-
 [[ -z "$VOLATILE" ]] && VOLATILE=/tmp
+
+# bail if $VOLATILE isn't tmpfs
+df -T "$VOLATILE" | grep -m 1 -q tmpfs || {
+echo "$VOLATILE is not tmpsfs so running asd is pointless. Aborting." >&2
+exit 1; }
 
 # simple function to determine user intent rather than using a null value
 case "${USE_OVERLAYFS,,}" in
