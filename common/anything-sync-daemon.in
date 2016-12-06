@@ -76,7 +76,7 @@ unset previous_extglob_setting
 # bail if $VOLATILE isn't tmpfs
 df -T "$VOLATILE" | grep -m 1 -q tmpfs || {
 echo "$VOLATILE is not tmpsfs so running asd is pointless. Aborting." >&2
-exit 1; }
+exit 0; }
 
 # simple function to determine user intent rather than using a null value
 case "${USE_OVERLAYFS,,}" in
@@ -163,7 +163,7 @@ config_check() {
   # nothing to do if these are empty
   if [[ -z "${WHATTOSYNC[0]}" ]]; then
     echo -e " ${BLD}Must define at least one directory in ${NRM}${BLU}$ASDCONF${NRM}"
-    exit 1
+    exit 0
   fi
 
   # make sure the user defined real dirs
