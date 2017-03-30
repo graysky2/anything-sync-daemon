@@ -19,6 +19,7 @@ Speed.
 Since the sync targets is relocated into tmpfs (RAM disk), the corresponding onslaught of I/O associated with system usage of them is also redirected from the physical disc to RAM, thus reducing wear to the physical disc and also improving speed and responsiveness.
 .SH SETUP
 /etc/asd.conf contains all user managed settings.
+Optionally another file can be used by setting the ASDCONF environment variable.
 .PP
 NOTE: edits made to /etc/asd.conf while asd is running will be applied only after asd has been restarted from the init service.
 .RS

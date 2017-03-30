@@ -17,7 +17,7 @@ DAEMON_FILE=${DAEMON_FILE:-"/run/asd"}
 CRASH_RECOVERY_SUFFIX="crashrecovery"
 
 # Setup check /etc/asd.conf
-if [[ -f /etc/asd.conf ]]; then
+if [[ -f "$ASDCONF" ]]; then
   if [[ ! -f "$DAEMON_FILE" ]]; then
     # do nothing if asd is currently running, otherwise
     # make sure only comments and variables/arrays are defined to prevent
