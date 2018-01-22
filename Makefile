@@ -36,6 +36,7 @@ install-bin: common/$(PN)
 	$(INSTALL_DIR) "$(DESTDIR)$(BINDIR)"
 	$(INSTALL_PROGRAM) common/$(PN) "$(DESTDIR)$(BINDIR)/$(PN)"
 	ln -sf $(PN) "$(DESTDIR)$(BINDIR)/asd"
+	$(INSTALL_DATA) common/asd.conf "$(DESTDIR)$(CONFDIR)/asd.conf"
 	$(INSTALL_DIR) "$(DESTDIR)$(ZSHDIR)"
 	$(INSTALL_DATA) common/zsh-completion "$(DESTDIR)/$(ZSHDIR)/_asd"
 	$(INSTALL_DIR) "$(DESTDIR)$(BSHDIR)"
@@ -61,7 +62,6 @@ install-systemd:
 	$(Q)echo -e '\033[1;32mInstalling systemd files...\033[0m'
 	$(INSTALL_DIR) "$(DESTDIR)$(CONFDIR)"
 	$(INSTALL_DIR) "$(DESTDIR)$(INITDIR_SYSTEMD)"
-	$(INSTALL_DATA) common/asd.conf "$(DESTDIR)$(CONFDIR)/asd.conf"
 	$(INSTALL_DATA) init/asd.service "$(DESTDIR)$(INITDIR_SYSTEMD)/asd.service"
 	$(INSTALL_DATA) init/asd-resync.service "$(DESTDIR)$(INITDIR_SYSTEMD)/asd-resync.service"
 	$(INSTALL_DATA) init/asd-resync.timer "$(DESTDIR)$(INITDIR_SYSTEMD)/asd-resync.timer"
@@ -70,7 +70,6 @@ install-upstart:
 	$(Q)echo -e '\033[1;32mInstalling upstart files...\033[0m'
 	$(INSTALL_DIR) "$(DESTDIR)$(CONFDIR)"
 	$(INSTALL_DIR) "$(DESTDIR)$(INITDIR_UPSTART)"
-	$(INSTALL_DATA) common/asd.conf "$(DESTDIR)$(CONFDIR)/asd.conf"
 	$(INSTALL_SCRIPT) init/asd.upstart "$(DESTDIR)$(INITDIR_UPSTART)/asd"
 
 install-systemd-all: install-bin install-man install-systemd
