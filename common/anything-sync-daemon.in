@@ -16,7 +16,7 @@ ASDCONF=${ASDCONF:-"/etc/asd.conf"}
 DAEMON_FILE=${DAEMON_FILE:-"/run/asd"}
 
 # Setup check /etc/asd.conf
-if [[ -f /etc/asd.conf ]]; then
+if [[ -f ${ASDCONF} ]]; then
   if [[ ! -f "$DAEMON_FILE" ]]; then
     # do nothing if asd is currently running, otherwise
     # make sure only comments and variables/arrays are defined to prevent
