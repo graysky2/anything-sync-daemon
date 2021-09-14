@@ -74,7 +74,7 @@ unset previous_extglob_setting
 [[ -z "$VOLATILE" ]] && VOLATILE=/tmp
 
 # bail if $VOLATILE isn't tmpfs
-df -T "$VOLATILE" | grep -m 1 -q tmpfs || {
+df -T "$VOLATILE" | grep -m 1 -q '\( tmpfs \|^/dev/zram\)' || {
 echo "$VOLATILE is not tmpsfs so running asd is pointless. Aborting." >&2
 exit 1; }
 
