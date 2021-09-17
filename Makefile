@@ -36,7 +36,7 @@ install-bin: common/$(PN)
 	$(INSTALL_DIR) "$(DESTDIR)$(BINDIR)"
 	$(INSTALL_PROGRAM) common/$(PN) "$(DESTDIR)$(BINDIR)/$(PN)"
 	ln -sf $(PN) "$(DESTDIR)$(BINDIR)/asd"
-	$(INSTALL_DATA) common/asd.conf "$(DESTDIR)$(CONFDIR)/asd.conf"
+	cp -n common/asd.conf "$(DESTDIR)$(CONFDIR)/asd.conf"
 	$(INSTALL_DIR) "$(DESTDIR)$(ZSHDIR)"
 	$(INSTALL_DATA) common/zsh-completion "$(DESTDIR)/$(ZSHDIR)/_asd"
 	$(INSTALL_DIR) "$(DESTDIR)$(BSHDIR)"
