@@ -448,9 +448,7 @@ parse() {
     WORK="$VOLATILE/.asd-$USER$DIR"
 
     # sync target dir size
-    psize=$(du -Dh --max-depth=0 "$DIR" 2>/dev/null | awk '{ print $1 }')
     if [[ -d "$DIR" ]]; then
-      CRASHArr=( $(find "${BACKUP%/*}" -type d -name '*crashrecovery*' 2>/dev/null|sort -r) )
       echo -en " ${BLD}owner/group id:"
       echo -e $(tput cr)$(tput cuf 20) "$USER"/"$GROUP${NRM}"
       echo -en " ${BLD}target to manage:"
@@ -460,6 +458,7 @@ parse() {
       echo -en " ${BLD}tmpfs target:"
       echo -e $(tput cr)$(tput cuf 20) "${RED}$TMP${NRM}"
       echo -en " ${BLD}dir size:"
+      psize=$(du -Dh --max-depth=0 "$DIR" 2>/dev/null | awk '{ print $1 }')
       echo -e "$(tput cr)$(tput cuf 20) $psize${NRM}"
       if [[ $OLFS -eq 1 ]]; then
         rwsize=$(du -Dh --max-depth=0 "$UPPER" 2>/dev/null | awk '{ print $1 }')
@@ -467,6 +466,7 @@ parse() {
         echo -e "$(tput cr)$(tput cuf 20) $rwsize${NRM}"
       fi
       echo -en " ${BLD}recovery dirs:"
+      CRASHArr=( $(find "${BACKUP%/*}" -type d -name '*crashrecovery*' 2>/dev/null|sort -r) )
       if [[ "${#CRASHArr[@]}" -eq 0 ]]; then
         echo -e "$(tput cr)$(tput cuf 20) none${NRM}"
       else
