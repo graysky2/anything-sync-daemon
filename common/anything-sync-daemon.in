@@ -75,7 +75,7 @@ unset previous_extglob_setting
 
 # bail if $VOLATILE isn't tmpfs
 df -T "$VOLATILE" | grep -m 1 -q '\( tmpfs \|^/dev/zram\)' || {
-echo "$VOLATILE is not tmpsfs so running asd is pointless. Aborting." >&2
+echo "$VOLATILE is not tmpfs so running asd is pointless. Aborting." >&2
 exit 1; }
 
 # simple function to determine user intent rather than using a null value
