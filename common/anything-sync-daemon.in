@@ -14,6 +14,7 @@ VERS="@VERSION@"
 
 ASDCONF=${ASDCONF:-"/etc/asd.conf"}
 DAEMON_FILE=${DAEMON_FILE:-"/run/asd"}
+CRASH_RECOVERY_SUFFIX="crashrecovery"
 
 # Setup check /etc/asd.conf
 if [[ -f /etc/asd.conf ]]; then
@@ -241,8 +242,7 @@ ungraceful_state_check() {
             TARGETTOKEEP="$BACKUP"
 
           if [[ $CRRE -eq 1 ]]; then
-            opts="-a --reflink=auto"
-            cp "$opts" "$TARGETTOKEEP" "$BACKUP-crashrecovery-$NOW"
+            cp -a --reflink=auto "$TARGETTOKEEP" "$BACKUP-$CRASH_RECOVERY_SUFFIX-$NOW"
           fi
 
           mv --no-target-directory "$TARGETTOKEEP" "$DIR"
@@ -253,8 +253,7 @@ ungraceful_state_check() {
           # at all which can be treated the same way
 
           if [[ $CRRE -eq 1 ]]; then
-            opts="-a --reflink=auto"
-            cp "$opts" "$BACKUP" "$BACKUP-crashrecovery-$NOW"
+            cp -a --reflink=auto "$BACKUP" "$BACKUP-$CRASH_RECOVERY_SUFFIX-$NOW"
             mv --no-target-directory "$BACKUP" "$DIR"
           fi
         fi
@@ -276,7 +275,9 @@ cleanup() {
     TMP="$VOLATILE/asd-$USER$DIR"
     UPPER="$VOLATILE/asd-$USER$DIR-rw"
     WORK="$VOLATILE/.asd-$USER$DIR"
-    mapfile -t CRASHArr < <(find "${BACKUP%/*}" -type d -name '*crashrecovery*' 2>/dev/null|sort -r)
+
+    # the backup directory has a suffix of asd which we can use to find crash recovery directories specific to asd
+    mapfile -t CRASHArr < <(find "${BACKUP%/*}" -type d -maxdepth 1 -name "*asd-$CRASH_RECOVERY_SUFFIX*" 2>/dev/null|sort -r)
 
     if [[ ${#CRASHArr[@]} -gt 0 ]]; then
       echo -e "${BLD}Deleting ${#CRASHArr[@]} crashrecovery dir(s) for sync target ${BLU}$DIR${NRM}"
@@ -298,7 +299,7 @@ enforce() {
     # this is the hdd bound backup in case of power failure
     [[ ${DIR##*/} == .* ]] && BACKUP="${DIR%/*}/${DIR##*/}-backup_asd" ||
       BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
-    mapfile -t CRASHArr < <(find "${BACKUP%/*}" -type d -name '*crashrecovery*' 2>/dev/null|sort -r)
+    mapfile -t CRASHArr < <(find "${BACKUP%/*}" -type d -maxdepth 1 -name "*asd-$CRASH_RECOVERY_SUFFIX*" 2>/dev/null|sort -r)
 
     if [[ ${#CRASHArr[@]} -gt $BACKUP_LIMIT ]]; then
       for remove in "${CRASHArr[@]:$BACKUP_LIMIT}"; do
@@ -467,7 +468,7 @@ parse() {
         echo -e "$(tput cr)$(tput cuf 20) $rwsize${NRM}"
       fi
       echo -en " ${BLD}recovery dirs:"
-      mapfile -t CRASHArr < <(find "${BACKUP%/*}" -type d -name '*crashrecovery*' 2>/dev/null|sort -r)
+      mapfile -t CRASHArr < <(find "${BACKUP%/*}" -type d -maxdepth 1 -name "*asd-$CRASH_RECOVERY_SUFFIX*" 2>/dev/null|sort -r)
       if [[ "${#CRASHArr[@]}" -eq 0 ]]; then
         echo -e "$(tput cr)$(tput cuf 20) none${NRM}"
       else
