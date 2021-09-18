@@ -21,14 +21,15 @@ if [[ -f /etc/asd.conf ]]; then
     # do nothing if asd is currently running, otherwise
     # make sure only comments and variables/arrays are defined to prevent
     # problems
-    if egrep -qv "^$|^\s*['\")#]|^[^ ]*=[^;]*" "$ASDCONF"; then
+    if grep -Eqv "^$|^\s*['\")#]|^[^ ]*=[^;]*" "$ASDCONF"; then
       # found text that isn't a blank line, comment, or variable present so exit
       echo -e " ${RED}ERROR:${NRM}${BLD} Syntax error(s) detected in ${BLU}$ASDCONF${NRM}"
       echo -e "${NRM}${BLD}Line number: offending comment${NRM}"
-      egrep -vn "^$|^\s*['\")#]|^[^ ]*=[^;]*" "$ASDCONF"
+      grep -Evn "^$|^\s*['\")#]|^[^ ]*=[^;]*" "$ASDCONF"
       exit 1
     fi
   fi
+  # shellcheck source=./asd.conf
   . "$ASDCONF"
 else
   echo -e " ${BLD}Cannot find $ASDCONF so bailing.${NRM}"
@@ -40,6 +41,7 @@ fi
 if [[ -f "${DAEMON_FILE}.conf" ]]; then
   unset WHATTOSYNC USE_OVERLAYFS USE_BACKUPS VOLATILE
   ASDCONF="${DAEMON_FILE}.conf"
+  # shellcheck source=./asd.conf
   . "$ASDCONF"
 fi
 
@@ -112,16 +114,15 @@ if [[ $OLFS -eq 1 ]]; then
   if [[ -z $OLFSVER ]]; then
     # since mount should call modprobe on invocation, check to see if either
     # module is in the tree using modinfo
-    modinfo overlayfs &>/dev/null
-    [[ $? -eq 0 ]] && OLFSVER=22
-    modinfo overlay &>/dev/null
-    [[ $? -eq 0 ]] && OLFSVER=23
+    modinfo overlayfs &>/dev/null && OLFSVER=22
+    modinfo overlay &>/dev/null && OLFSVER=23
   fi
 fi
 
 # get distro name
 # first try os-release
 if [[ -f /etc/os-release ]]; then
+  # shellcheck source=/dev/null
   source /etc/os-release
   if [[ -n "$PRETTY_NAME" ]]; then
     distro="$PRETTY_NAME"
@@ -241,7 +242,7 @@ ungraceful_state_check() {
 
           if [[ $CRRE -eq 1 ]]; then
             opts="-a --reflink=auto"
-            cp $opts "$TARGETTOKEEP" "$BACKUP-crashrecovery-$NOW"
+            cp "$opts" "$TARGETTOKEEP" "$BACKUP-crashrecovery-$NOW"
           fi
 
           mv --no-target-directory "$TARGETTOKEEP" "$DIR"
@@ -253,7 +254,7 @@ ungraceful_state_check() {
 
           if [[ $CRRE -eq 1 ]]; then
             opts="-a --reflink=auto"
-            cp $opts "$BACKUP" "$BACKUP-crashrecovery-$NOW"
+            cp "$opts" "$BACKUP" "$BACKUP-crashrecovery-$NOW"
             mv --no-target-directory "$BACKUP" "$DIR"
           fi
         fi
@@ -275,7 +276,7 @@ cleanup() {
     TMP="$VOLATILE/asd-$USER$DIR"
     UPPER="$VOLATILE/asd-$USER$DIR-rw"
     WORK="$VOLATILE/.asd-$USER$DIR"
-    CRASHArr=( $(find "${BACKUP%/*}" -type d -name '*crashrecovery*' 2>/dev/null|sort -r) )
+    mapfile -t CRASHArr < <(find "${BACKUP%/*}" -type d -name '*crashrecovery*' 2>/dev/null|sort -r)
 
     if [[ ${#CRASHArr[@]} -gt 0 ]]; then
       echo -e "${BLD}Deleting ${#CRASHArr[@]} crashrecovery dir(s) for sync target ${BLU}$DIR${NRM}"
@@ -297,7 +298,7 @@ enforce() {
     # this is the hdd bound backup in case of power failure
     [[ ${DIR##*/} == .* ]] && BACKUP="${DIR%/*}/${DIR##*/}-backup_asd" ||
       BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
-    CRASHArr=( $(find "${BACKUP%/*}" -type d -name '*crashrecovery*' 2>/dev/null|sort -r) )
+    mapfile -t CRASHArr < <(find "${BACKUP%/*}" -type d -name '*crashrecovery*' 2>/dev/null|sort -r)
 
     if [[ ${#CRASHArr[@]} -gt $BACKUP_LIMIT ]]; then
       for remove in "${CRASHArr[@]:$BACKUP_LIMIT}"; do
@@ -427,7 +428,7 @@ parse() {
     [[ -x /etc/cron.hourly/asd-update ]] && resync_state="present" || resync_state="not present"
     [[ "$resync_state" = "present" ]] && resync_color="${GRN}" || resync_color="${RED}"
     echo -e " ${BLD}Daemon pid file is $([[ -f $DAEMON_FILE ]] &&
-      echo -e ${GRN}present${NRM}${BLD} || echo -e ${RED}not present${NRM}${BLD}).${NRM}"
+      echo -e "${GRN}"present"${NRM}""${BLD}" || echo -e "${RED}"not present"${NRM}""${BLD}").${NRM}"
     echo -e " ${BLD}Resync cronjob is ${resync_color}${resync_state}${NRM}${BLD}.${NRM}"
   fi
   [[ $OLFS -eq 1 ]] &&
@@ -450,13 +451,13 @@ parse() {
     # sync target dir size
     if [[ -d "$DIR" ]]; then
       echo -en " ${BLD}owner/group id:"
-      echo -e $(tput cr)$(tput cuf 20) "$USER"/"$GROUP${NRM}"
+      echo -e "$(tput cr)""$(tput cuf 20)" "$USER/$GROUP${NRM}"
       echo -en " ${BLD}target to manage:"
-      echo -e $(tput cr)$(tput cuf 20) "${GRN}$DIR${NRM}"
+      echo -e "$(tput cr)""$(tput cuf 20)" "${GRN}$DIR${NRM}"
       echo -en " ${BLD}sync target:"
-      echo -e $(tput cr)$(tput cuf 20) "${BLU}$BACKUP${NRM}"
+      echo -e "$(tput cr)""$(tput cuf 20)" "${BLU}$BACKUP${NRM}"
       echo -en " ${BLD}tmpfs target:"
-      echo -e $(tput cr)$(tput cuf 20) "${RED}$TMP${NRM}"
+      echo -e "$(tput cr)""$(tput cuf 20)" "${RED}$TMP${NRM}"
       echo -en " ${BLD}dir size:"
       psize=$(du -Dh --max-depth=0 "$DIR" 2>/dev/null | awk '{ print $1 }')
       echo -e "$(tput cr)$(tput cuf 20) $psize${NRM}"
@@ -466,7 +467,7 @@ parse() {
         echo -e "$(tput cr)$(tput cuf 20) $rwsize${NRM}"
       fi
       echo -en " ${BLD}recovery dirs:"
-      CRASHArr=( $(find "${BACKUP%/*}" -type d -name '*crashrecovery*' 2>/dev/null|sort -r) )
+      mapfile -t CRASHArr < <(find "${BACKUP%/*}" -type d -name '*crashrecovery*' 2>/dev/null|sort -r)
       if [[ "${#CRASHArr[@]}" -eq 0 ]]; then
         echo -e "$(tput cr)$(tput cuf 20) none${NRM}"
       else
