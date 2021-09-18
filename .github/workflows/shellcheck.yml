@@ -1,0 +1,15 @@
+name: Shellcheck
+
+on: [ push ]
+
+jobs:
+  lint:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Static analysis using shellcheck
+      run: |
+        sudo apt-get install shellcheck -y
+        shellcheck common/anything-sync-daemon.in -e SC1091
