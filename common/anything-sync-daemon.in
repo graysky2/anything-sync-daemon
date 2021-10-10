@@ -17,9 +17,9 @@ DAEMON_FILE=${DAEMON_FILE:-"/run/asd"}
 CRASH_RECOVERY_SUFFIX="crashrecovery"
 if [[ "$ASDCONF" != "/etc/asd.conf" ]]; then
     ASDNAME="${ASDCONF##*/}"
-    ASDNAME="-${ASDNAME%.conf}"
+    ASDNAME="${ASDNAME%.conf}"
     if [[ "$DAEMON_FILE" == "/run/asd" ]]; then
-        DAEMON_FILE="$DAEMON_FILE$ASDNAME"
+        DAEMON_FILE="$DAEMON_FILE-$ASDNAME"
     fi
 fi
 
@@ -220,7 +220,7 @@ ungraceful_state_check() {
     else
       USER=$(stat -c %U "$DIR")
     fi
-    TMP="$VOLATILE/asd$ASDNAME-$USER$DIR"
+    TMP="$VOLATILE/asd-$ASDNAME-$USER$DIR"
 
     if [[ -e "$TMP"/.flagged ]]; then
       # all is well so continue
@@ -279,9 +279,9 @@ cleanup() {
       BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
     USER=$(stat -c %U "$DIR")
     GROUP=$(id -g "$USER")
-    TMP="$VOLATILE/asd$ASDNAME-$USER$DIR"
-    UPPER="$VOLATILE/asd$ASDNAME-$USER$DIR-rw"
-    WORK="$VOLATILE/.asd$ASDNAME-$USER$DIR"
+    TMP="$VOLATILE/asd-$ASDNAME-$USER$DIR"
+    UPPER="$VOLATILE/asd-$ASDNAME-$USER$DIR-rw"
+    WORK="$VOLATILE/.asd-$ASDNAME-$USER$DIR"
 
     # the backup directory has a suffix of asd which we can use to find crash recovery directories specific to asd
     mapfile -t CRASHArr < <(find "${BACKUP%/*}" -type d -maxdepth 1 -name "*asd-$CRASH_RECOVERY_SUFFIX*" 2>/dev/null|sort -r)
@@ -335,9 +335,9 @@ do_sync() {
       BACK_OVFS="${DIR%/*}/.${DIR##*/}-back-ovfs"
     USER=$(stat -c %U "$DIR")
     GROUP=$(id -g "$USER")
-    TMP="$VOLATILE/asd$ASDNAME-$USER$DIR"
-    UPPER="$TMP-rw"
-    WORK="$VOLATILE/.asd$ASDNAME-$USER$DIR"
+    TMP="$VOLATILE/asd-$ASDNAME-$USER$DIR"
+    UPPER="$VOLATILE/asd-$ASDNAME-$USER$DIR-rw"
+    WORK="$VOLATILE/.asd-$ASDNAME-$USER$DIR"
 
     # make tmpfs container
     if [[ -d "$DIR" ]]; then
@@ -398,9 +398,9 @@ do_unsync() {
       BACK_OVFS="${DIR%/*}/.${DIR##*/}-back-ovfs"
     USER=$(stat -c %U "$DIR")
     GROUP=$(id -g "$USER")
-    TMP="$VOLATILE/asd$ASDNAME-$USER$DIR"
-    UPPER="$TMP-rw"
-    WORK="$VOLATILE/.asd$ASDNAME-$USER$DIR"
+    TMP="$VOLATILE/asd-$ASDNAME-$USER$DIR"
+    UPPER="$VOLATILE/asd-$ASDNAME-$USER$DIR-rw"
+    WORK="$VOLATILE/.asd-$ASDNAME-$USER$DIR"
 
     # remove link and move data from tmpfs to disk
     if [[ -h "$DIR" ]]; then
@@ -413,9 +413,9 @@ do_unsync() {
       if [[ $OLFS -eq 1 ]] && mountpoint -q "$TMP"; then
         rsync -aogX --delete-after --inplace --no-whole-file --exclude .flagged "$BACK_OVFS/" "$DIR/"
         umount -l "$TMP"
-        rm -rf "$VOLATILE/asd$ASDNAME-$USER" "$VOLATILE/asd$ASDNAME-$USER-rw" "$VOLATILE/.asd$ASDNAME-$USER" &>/dev/null
+        rm -rf "$VOLATILE/asd-$ASDNAME-$USER" "$VOLATILE/asd-$ASDNAME-$USER-rw" "$VOLATILE/.asd-$ASDNAME-$USER" &>/dev/null
       else
-        [[ -d "$TMP" ]] && rm -rf "$VOLATILE/asd$ASDNAME-$USER"
+        [[ -d "$TMP" ]] && rm -rf "$VOLATILE/asd-$ASDNAME-$USER"
       fi
     fi
   done
@@ -452,9 +452,9 @@ parse() {
       BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
     USER=$(stat -c %U "$DIR")
     GROUP=$(id -g "$USER")
-    TMP="$VOLATILE/asd$ASDNAME-$USER$DIR"
-    UPPER="$TMP-rw"
-    WORK="$VOLATILE/.asd$ASDNAME-$USER$DIR"
+    TMP="$VOLATILE/asd-$ASDNAME-$USER$DIR"
+    UPPER="$VOLATILE/asd-$ASDNAME-$USER$DIR-rw"
+    WORK="$VOLATILE/.asd-$ASDNAME-$USER$DIR"
 
     # sync target dir size
     if [[ -d "$DIR" ]]; then
