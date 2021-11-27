@@ -17,8 +17,7 @@ DAEMON_FILE=${DAEMON_FILE:-"/run/asd"}
 CRASH_RECOVERY_SUFFIX="crashrecovery"
 ASDNAME="asd"
 if [[ "$ASDCONF" != "/etc/asd.conf" ]]; then
-    suffix="${ASDCONF##*/}"
-    suffix="-${ASDNAME%.conf}"
+    suffix=$(realpath $ASDCONF | sha256sum | cut -b -16)
     ASDNAME="$ASDNAME-$suffix"
     if [[ "$DAEMON_FILE" == "/run/asd" ]]; then
         DAEMON_FILE="$DAEMON_FILE-$ASDNAME"
@@ -285,8 +284,7 @@ cleanup() {
     UPPER="$VOLATILE/$ASDNAME-$USER$DIR-rw"
     WORK="$VOLATILE/.$ASDNAME-$USER$DIR"
 
-    # the backup directory has a suffix of asd which we can use to find crash recovery directories specific to asd
-    mapfile -t CRASHArr < <(find "${BACKUP%/*}" -type d -maxdepth 1 -name "*asd-$CRASH_RECOVERY_SUFFIX*" 2>/dev/null|sort -r)
+    mapfile -t CRASHArr < <(find "${BACKUP%/*}" -type d -maxdepth 1 -name "$BACKUP-$CRASH_RECOVERY_SUFFIX-*" 2>/dev/null|sort -r)
 
     if [[ ${#CRASHArr[@]} -gt 0 ]]; then
       echo -e "${BLD}Deleting ${#CRASHArr[@]} crashrecovery dir(s) for sync target ${BLU}$DIR${NRM}"
@@ -308,7 +306,7 @@ enforce() {
     # this is the hdd bound backup in case of power failure
     [[ ${DIR##*/} == .* ]] && BACKUP="${DIR%/*}/${DIR##*/}-backup_asd" ||
       BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
-    mapfile -t CRASHArr < <(find "${BACKUP%/*}" -type d -maxdepth 1 -name "*asd-$CRASH_RECOVERY_SUFFIX*" 2>/dev/null|sort -r)
+    mapfile -t CRASHArr < <(find "${BACKUP%/*}" -type d -maxdepth 1 -name "$BACKUP-$CRASH_RECOVERY_SUFFIX-*" 2>/dev/null|sort -r)
 
     if [[ ${#CRASHArr[@]} -gt $BACKUP_LIMIT ]]; then
       for remove in "${CRASHArr[@]:$BACKUP_LIMIT}"; do
