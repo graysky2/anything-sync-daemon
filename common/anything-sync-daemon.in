@@ -548,7 +548,7 @@ parse() {
         echo -e "$(tput cr)$(tput cuf 20) $rwsize${NRM}"
       fi
       echo -en " ${BLD}recovery dirs:"
-      mapfile -t CRASHArr < <(find "${BACKUP%/*}" -type d -maxdepth 1 -name "*asd-$CRASH_RECOVERY_SUFFIX*" 2>/dev/null|sort -r)
+      mapfile -t CRASHArr < <(find "${BACKUP%/*}" -type d -maxdepth 1 -name "$BACKUP-$CRASH_RECOVERY_SUFFIX*" 2>/dev/null|sort -r)
       if [[ "${#CRASHArr[@]}" -eq 0 ]]; then
         echo -e "$(tput cr)$(tput cuf 20) none${NRM}"
       else
