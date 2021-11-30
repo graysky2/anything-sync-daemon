@@ -265,6 +265,7 @@ ungraceful_state_check() {
     debug "DIR: $DIR\nBACKUP: $BACKUP\nBACK_OVFS: $BACK_OVFS\nUSER: $USER\nTMP: $TMP"
 
     if [[ -e "$TMP"/.flagged ]]; then
+      debug "No ungraceful state detected"
       # all is well so continue
       return
     else
@@ -296,8 +297,11 @@ ungraceful_state_check() {
             cp -a --reflink=auto "$TARGETTOKEEP" "$BACKUP-$CRASH_RECOVERY_SUFFIX-$NOW"
           fi
 
-          debug "moving $TARGETTOKEEP to $DIR"
-          mv --no-target-directory "$TARGETTOKEEP" "$DIR"
+          debug "deleting $DIR and moving $TARGETTOKEEP to $DIR"
+
+          # since we already have a backup directory, it is safe to
+          # delete the directory here
+          rm -rf "$DIR" && mv --no-target-directory "$TARGETTOKEEP" "$DIR"
 
           debug "removing $BACKUP"
           rm -rf "$BACKUP"
@@ -310,8 +314,10 @@ ungraceful_state_check() {
             debug "copying $BACKUP to $BACKUP-$CRASH_RECOVERY_SUFFIX-$NOW"
             cp -a --reflink=auto "$BACKUP" "$BACKUP-$CRASH_RECOVERY_SUFFIX-$NOW"
 
-            debug "moving $BACKUP to $DIR"
-            mv --no-target-directory "$BACKUP" "$DIR"
+            debug "deleting $DIR and moving $BACKUP to $DIR"
+            # since we already have a backup directory, it is safe to
+            # delete the directory here
+            rm -rf "$DIR" && mv --no-target-directory "$BACKUP" "$DIR"
           fi
         fi
       fi
@@ -486,7 +492,7 @@ do_unsync() {
       if [[ $OLFS -eq 1 ]] && mountpoint -q "$TMP"; then
         rsync -aogX --delete-after --inplace --no-whole-file --exclude .flagged "$BACK_OVFS/" "$DIR/" && debug "sync $BACK_OVFS with $DIR"
         umount -l "$TMP" && debug "unmount $TMP"
-        rm -rf "$VOLATILE/$ASDNAME-$USER" "$VOLATILE/$ASDNAME-$USER-rw" "$VOLATILE/.$ASDNAME-$USER" && debug "removing overlayfs folders"
+        rm -rf "$TMP" "$UPPER" "$WORK" && debug "removing overlayfs folders"
       else
         [[ -d "$TMP" ]] && rm -rf "$VOLATILE/$ASDNAME-$USER" && debug "removing $VOLATILE/$ASDNAME-$USER"
       fi
@@ -548,7 +554,7 @@ parse() {
         echo -e "$(tput cr)$(tput cuf 20) $rwsize${NRM}"
       fi
       echo -en " ${BLD}recovery dirs:"
-      mapfile -t CRASHArr < <(find "${BACKUP%/*}" -type d -maxdepth 1 -name "$BACKUP-$CRASH_RECOVERY_SUFFIX*" 2>/dev/null|sort -r)
+      mapfile -t CRASHArr < <(find "${BACKUP%/*}" -type d -maxdepth 1 -name "$BACKUP-$CRASH_RECOVERY_SUFFIX-*" 2>/dev/null|sort -r)
       if [[ "${#CRASHArr[@]}" -eq 0 ]]; then
         echo -e "$(tput cr)$(tput cuf 20) none${NRM}"
       else

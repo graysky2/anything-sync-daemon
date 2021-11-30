@@ -7,7 +7,7 @@ Wants=asd-resync.timer
 PartOf=asd.service
 
 [Service]
-Type=oneshot
+Environment="DEBUG=1"
 ExecStart=/usr/bin/anything-sync-daemon resync
 
 [Install]
