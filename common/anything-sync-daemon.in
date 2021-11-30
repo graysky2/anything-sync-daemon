@@ -13,6 +13,13 @@ debug() {
   fi
 }
 
+debug "checking flock"
+  command -v flock >/dev/null 2>&1 || {
+  echo "I require flock but it's not installed. Aborting." >&2
+  exit 1; }
+debug "flock found, waiting for lock"
+[[ ${FLOCKER} != "$0" ]] && exec env FLOCKER="$0" flock -e "$0" "$0" "$*" ||
+
 BLD="\e[01m"
 RED="\e[01;31m"
 GRN="\e[01;32m"
