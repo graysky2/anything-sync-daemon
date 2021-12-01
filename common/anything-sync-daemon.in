@@ -351,7 +351,7 @@ cleanup() {
     WORK="$VOLATILE/.$ASDNAME-$USER$DIR"
     debug "DIR: $DIR\nUSER: $USER\nGROUP: $GROUP\nTMP: $TMP\nUPPER: $UPPER\nWORK: $WORK"
 
-    mapfile -t CRASHArr < <(find "${BACKUP%/*}" -type d -maxdepth 1 -name "$BACKUP-$CRASH_RECOVERY_SUFFIX-*" 2>/dev/null|sort -r)
+    mapfile -t CRASHArr < <(find "${BACKUP%/*}" -type d -maxdepth 1 -name "${BACKUP##*/}-$CRASH_RECOVERY_SUFFIX-*" 2>/dev/null|sort -r)
 
     if [[ ${#CRASHArr[@]} -gt 0 ]]; then
       echo -e "${BLD}Deleting ${#CRASHArr[@]} crashrecovery dir(s) for sync target ${BLU}$DIR${NRM}"
@@ -376,7 +376,7 @@ enforce() {
     [[ ${DIR##*/} == .* ]] && BACKUP="${DIR%/*}/${DIR##*/}-backup_asd" ||
       BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
     debug "DIR: $DIR\nBACKUP: $BACKUP"
-    mapfile -t CRASHArr < <(find "${BACKUP%/*}" -type d -maxdepth 1 -name "$BACKUP-$CRASH_RECOVERY_SUFFIX-*" 2>/dev/null|sort -r)
+    mapfile -t CRASHArr < <(find "${BACKUP%/*}" -type d -maxdepth 1 -name "${BACKUP##*/}-$CRASH_RECOVERY_SUFFIX-*" 2>/dev/null|sort -r)
 
     if [[ ${#CRASHArr[@]} -gt $BACKUP_LIMIT ]]; then
       debug "The backups are greater than $BACKUP_LIMIT"
@@ -564,7 +564,7 @@ parse() {
         echo -e "$(tput cr)$(tput cuf 20) $rwsize${NRM}"
       fi
       echo -en " ${BLD}recovery dirs:"
-      mapfile -t CRASHArr < <(find "${BACKUP%/*}" -type d -maxdepth 1 -name "$BACKUP-$CRASH_RECOVERY_SUFFIX-*" 2>/dev/null|sort -r)
+      mapfile -t CRASHArr < <(find "${BACKUP%/*}" -type d -maxdepth 1 -name "${BACKUP##*/}-$CRASH_RECOVERY_SUFFIX-*" 2>/dev/null|sort -r)
       if [[ "${#CRASHArr[@]}" -eq 0 ]]; then
         echo -e "$(tput cr)$(tput cuf 20) none${NRM}"
       else
