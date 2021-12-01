@@ -17,8 +17,7 @@ debug "checking flock"
   command -v flock >/dev/null 2>&1 || {
   echo "I require flock but it's not installed. Aborting." >&2
   exit 1; }
-debug "flock found, waiting for lock"
-[[ ${FLOCKER} != "$0" ]] && exec env FLOCKER="$0" flock -e "$0" "$0" "$*" ||
+debug "flock found"
 
 BLD="\e[01m"
 RED="\e[01;31m"
@@ -38,10 +37,14 @@ if [[ "$ASDCONF" != "/etc/asd.conf" ]]; then
         DAEMON_FILE="/run/$ASDNAME"
     fi
 fi
+LOCKFILE="/run/$ASDNAME-lock"
+debug "Waiting for lock...\n"
+[[ ${FLOCKER} != "$0" ]] && exec env FLOCKER="$0" flock -e "$LOCKFILE" "$0" "$*" ||
 
 debug "${RED}ASDNAME:${NRM} $ASDNAME"
 debug "${BLU}Configuration file:${NRM} $ASDCONF"
-debug "${GRN}Daemon file:${NRM} $DAEMON_FILE\n"
+debug "${GRN}Daemon file:${NRM} $DAEMON_FILE"
+debug "${RED}Lockfile:${NRM} $LOCKFILE\n"
 
 # Setup check /etc/asd.conf
 debug "Checking for existence of $ASDCONF"
