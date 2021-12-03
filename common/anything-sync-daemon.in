@@ -204,6 +204,15 @@ dep_check() {
   debug "checking awk"
   command -v awk >/dev/null 2>&1 || {
   echo "I require awk but it's not installed. Aborting." >&2; exit 1; }
+  debug "checking pv"
+  command -v pv >/dev/null 2>&1 || {
+  echo "I require pv but it's not installed. Aborting." >&2; exit 1; }
+  debug "checking tar"
+  command -v tar >/dev/null 2>&1 || {
+  echo "I require tar but it's not installed. Aborting." >&2; exit 1; }
+  debug "checking zstd"
+  command -v zstd >/dev/null 2>&1 || {
+  echo "I require zstd but it's not installed. Aborting." >&2; exit 1; }
   if [[ $OLFS -eq 1 ]]; then
     [[ $OLFSVER -ge 22 ]] || {
     echo -e " ${BLD}Your kernel requires either the ${BLU}overlay${NRM}${BLD} or ${BLU}overlayfs${NRM}${BLD} module to use${NRM}"
@@ -277,7 +286,7 @@ ungraceful_state_check() {
     if [[ -e "$TMP"/.flagged ]]; then
       debug "No ungraceful state detected"
       # all is well so continue
-      return
+      continue
     else
       NOW=$(date +%Y%m%d_%H%M%S)
       if [[ -h "$DIR" ]]; then
@@ -303,8 +312,8 @@ ungraceful_state_check() {
             TARGETTOKEEP="$BACKUP"
 
           if [[ $CRRE -eq 1 ]]; then
-            debug "copying $TARGETTOKEEP to $BACKUP-$CRASH_RECOVERY_SUFFIX-$NOW"
-            cp -a --reflink=auto "$TARGETTOKEEP" "$BACKUP-$CRASH_RECOVERY_SUFFIX-$NOW"
+            debug "copying $TARGETTOKEEP to $BACKUP-$CRASH_RECOVERY_SUFFIX-$NOW.tar.zstd"
+            tar cf - -C "${BACKUP%/*}" "${BACKUP##*/}" | pv -s "$(du -sb "$BACKUP" | awk '{print $1}')" | zstd > "$BACKUP-$CRASH_RECOVERY_SUFFIX-$NOW.tar.zstd"
           fi
 
           debug "deleting $DIR and moving $TARGETTOKEEP to $DIR"
@@ -321,19 +330,19 @@ ungraceful_state_check() {
           # at all which can be treated the same way
 
           if [[ $CRRE -eq 1 ]]; then
-            debug "copying $BACKUP to $BACKUP-$CRASH_RECOVERY_SUFFIX-$NOW"
-            cp -a --reflink=auto "$BACKUP" "$BACKUP-$CRASH_RECOVERY_SUFFIX-$NOW"
-
-            debug "deleting $DIR and moving $BACKUP to $DIR"
-            # since we already have a backup directory, it is safe to
-            # delete the directory here
-            rm -rf "$DIR" && mv --no-target-directory "$BACKUP" "$DIR"
+            debug "copying $BACKUP to $BACKUP-$CRASH_RECOVERY_SUFFIX-$NOW.tar.zstd"
+            tar cf - -C "${BACKUP%/*}" "${BACKUP##*/}" | pv -s "$(du -sb "$BACKUP" | awk '{print $1}')" | zstd > "$BACKUP-$CRASH_RECOVERY_SUFFIX-$NOW.tar.zstd"
           fi
+
+          debug "deleting $DIR and moving $BACKUP to $DIR"
+          # since we already have a backup directory, it is safe to
+          # delete the directory here
+          rm -rf "$DIR" && mv --no-target-directory "$BACKUP" "$DIR"
         fi
       fi
     fi
     # if overlayfs was active but is no longer, remove $BACK_OVFS
-    [[ $OLFS -eq 1 ]] || rm -rf "$BACK_OVFS" && debug "removing $BACK_OVFS"
+    [[ $OLFS -eq 1 ]] || (rm -rfv "$BACK_OVFS" && debug "removing $BACK_OVFS")
   done
 }
 
@@ -351,7 +360,7 @@ cleanup() {
     WORK="$VOLATILE/.$ASDNAME-$USER$DIR"
     debug "DIR: $DIR\nUSER: $USER\nGROUP: $GROUP\nTMP: $TMP\nUPPER: $UPPER\nWORK: $WORK"
 
-    mapfile -t CRASHArr < <(find "${BACKUP%/*}" -type d -maxdepth 1 -name "${BACKUP##*/}-$CRASH_RECOVERY_SUFFIX-*" 2>/dev/null|sort -r)
+    mapfile -t CRASHArr < <(find "${BACKUP%/*}" -maxdepth 1 -name "${BACKUP##*/}-$CRASH_RECOVERY_SUFFIX-*" 2>/dev/null|sort -r)
 
     if [[ ${#CRASHArr[@]} -gt 0 ]]; then
       echo -e "${BLD}Deleting ${#CRASHArr[@]} crashrecovery dir(s) for sync target ${BLU}$DIR${NRM}"
@@ -376,7 +385,7 @@ enforce() {
     [[ ${DIR##*/} == .* ]] && BACKUP="${DIR%/*}/${DIR##*/}-backup_asd" ||
       BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
     debug "DIR: $DIR\nBACKUP: $BACKUP"
-    mapfile -t CRASHArr < <(find "${BACKUP%/*}" -type d -maxdepth 1 -name "${BACKUP##*/}-$CRASH_RECOVERY_SUFFIX-*" 2>/dev/null|sort -r)
+    mapfile -t CRASHArr < <(find "${BACKUP%/*}" -maxdepth 1 -name "${BACKUP##*/}-$CRASH_RECOVERY_SUFFIX-*" 2>/dev/null|sort -r)
 
     if [[ ${#CRASHArr[@]} -gt $BACKUP_LIMIT ]]; then
       debug "The backups are greater than $BACKUP_LIMIT"
@@ -564,7 +573,7 @@ parse() {
         echo -e "$(tput cr)$(tput cuf 20) $rwsize${NRM}"
       fi
       echo -en " ${BLD}recovery dirs:"
-      mapfile -t CRASHArr < <(find "${BACKUP%/*}" -type d -maxdepth 1 -name "${BACKUP##*/}-$CRASH_RECOVERY_SUFFIX-*" 2>/dev/null|sort -r)
+      mapfile -t CRASHArr < <(find "${BACKUP%/*}" -maxdepth 1 -name "${BACKUP##*/}-$CRASH_RECOVERY_SUFFIX-*" 2>/dev/null|sort -r)
       if [[ "${#CRASHArr[@]}" -eq 0 ]]; then
         echo -e "$(tput cr)$(tput cuf 20) none${NRM}"
       else
