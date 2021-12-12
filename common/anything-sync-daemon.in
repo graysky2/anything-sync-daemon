@@ -16,6 +16,7 @@ debug() {
 set -e
 Error() {
   echo "Error occurred at $1"
+  exit 1
 }
 trap 'Error $LINENO' ERR
 
@@ -206,7 +207,7 @@ header() {
 }
 
 dep_check() {
-  # Function is used to insure all dependencies are installed
+  # Function is used to ensure all dependencies are installed
   debug "\n${BLU}Checking dependencies${NRM}"
   debug "checking rsync"
   command -v rsync >/dev/null 2>&1 || {
@@ -243,11 +244,14 @@ config_check() {
   # make sure the user defined real dirs
   for DIR in "${WHATTOSYNC[@]}"; do
     debug "DIR: $DIR"
+    [[ ${DIR##*/} == .* ]] && BACKUP="${DIR%/*}/${DIR##*/}-backup_asd" ||
+      BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
+    [[ ${DIR##*/} == .* ]] && BACK_OLD="${DIR%/*}/${DIR##*/}-backup_asd-old" ||
+      BACK_OLD="${DIR%/*}/.${DIR##*/}-backup_asd-old"
+    debug "BACKUP: $BACKUP"
+    debug "BACK_OLD: $BACK_OLD"
     if [[ ! -d "$DIR" ]]; then
-      [[ ${DIR##*/} == .* ]] && BACKUP="${DIR%/*}/${DIR##*/}-backup_asd" ||
-        BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
-      debug "BACKUP: $BACKUP"
-      if [[ ! -d "$BACKUP" ]]; then
+      if [[ ! -d "$BACK_OLD" ]]; then
         echo -e "${BLD}Bad entry in your WHATTOSYNC array detected:${NRM}"
         echo -e " ${BLD}${RED}$DIR${NRM}"
         echo -e "${BLD}Edit ${BLU}$ASDCONF${NRM}${BLD} correcting the mistake and try again.${NRM}"
@@ -255,7 +259,7 @@ config_check() {
       fi
     else
       # sanity check for hardlinks
-      if [[ $ENABLE_HARDLINK_SAFETY_CHECK -ne 0 && -n $(find "$DIR" -type f -links +1) ]]; then
+      if [[ ! -d "$BACK_OLD" && $ENABLE_HARDLINK_SAFETY_CHECK -ne 0 && -n $(find "$DIR" -type f -links +1) ]]; then
         echo -e "$DIR:\n${RED} Presence of hardlinks found, asd might break them:${NRM}"
         exit 1
       else
@@ -292,8 +296,8 @@ ungraceful_state_check() {
     # this is the hdd bound backup in case of power failure
     [[ ${DIR##*/} == .* ]] && BACKUP="${DIR%/*}/${DIR##*/}-backup_asd" ||
       BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
-    [[ ${DIR##*/} == .* ]] && BACK_NEW="${DIR%/*}/${DIR##*/}-backup_asd-new" ||
-      BACK_NEW="${DIR%/*}/.${DIR##*/}-backup_asd-new"
+    [[ ${DIR##*/} == .* ]] && BACK_OLD="${DIR%/*}/${DIR##*/}-backup_asd-old" ||
+      BACK_OLD="${DIR%/*}/.${DIR##*/}-backup_asd-old"
     if [[ -d "$BACKUP" ]]; then
       USER=$(stat -c %U "$BACKUP")
     else
@@ -302,33 +306,29 @@ ungraceful_state_check() {
     TMP="$VOLATILE/$ASDNAME-$USER$DIR"
     UPPER="$VOLATILE/$ASDNAME-$USER$DIR-rw"
     WORK="$VOLATILE/.$ASDNAME-$USER$DIR"
-    debug "DIR: $DIR\nBACKUP: $BACKUP\nBACK_NEW: $BACK_NEW\nUSER: $USER\nTMP: $TMP"
+    debug "DIR: $DIR\nBACKUP: $BACKUP\nBACK_OLD: $BACK_OLD\nUSER: $USER\nTMP: $TMP"
 
     if [[ -e "$TMP"/.flagged || ! -d "$BACKUP" ]]; then
       debug "No ungraceful state detected"
       # all is well so continue
       continue
     else
+      echo "Ungraceful state detected for $DIR so fixing"
       NOW=$(date +%Y%m%d_%H%M%S)
-      if [[ -h "$DIR" ]]; then
-        echo "Ungraceful state detected for $DIR so fixing"
-        debug "unlinking $DIR"
-        unlink "$DIR"
-      fi
-      mountpoint -q "$TMP" && umount "$TMP" && rm -rf "$TMP" "$UPPER" "$WORK"
-      if [[ -d "$BACKUP" ]]; then
+
+      debug "unmounting $DIR"
+      mountpoint -q "$DIR" && umount -R -l "$DIR"
+      debug "unmounting $BACKUP"
+      mountpoint -q "$BACKUP" && umount -R -l "$BACKUP" && rm -rf "$BACKUP" && debug "removed $BACKUP dir"
+
+      mountpoint -q "$TMP" && umount "$TMP" && rm -rf "$TMP" "$UPPER" "$WORK" && debug "unmounted overlay dirs"
+
+      if [[ -d "$BACK_OLD" ]]; then
         if [[ $CRRE -eq 1 ]]; then
-          debug "copying $BACKUP to $BACKUP-$CRASH_RECOVERY_SUFFIX-$NOW"
-          tar cf - -C "${BACKUP%/*}" "${BACKUP##*/}" | pv -s "$(du -sb "$BACKUP" | awk '{print $1}')" | zstd > "$BACKUP-$CRASH_RECOVERY_SUFFIX-$NOW.tar.zstd"
-          [[ -d "$BACK_NEW" ]] && rm -rf "$BACKUP" && debug "deleting the $BACKUP directory"
+          debug "copying $BACK_OLD to $BACKUP-$CRASH_RECOVERY_SUFFIX-$NOW.tar.zstd"
+          tar cf - -C "${BACK_OLD%/*}" "${BACK_OLD##*/}" | pv -s "$(du -sb "$BACK_OLD" | awk '{print $1}')" | zstd > "$BACKUP-$CRASH_RECOVERY_SUFFIX-$NOW.tar.zstd"
         fi
-        # since we already have a backup directory, it is safe to
-        # delete the directory here and copy the last synced state
-        if [[ -d "$BACKUP" ]];then
-          rm -rf "$DIR" && mv --no-target-directory "$BACKUP" "$DIR" && debug "deleting $DIR and moving $BACKUP to $DIR"
-        else
-          rm -rf "$DIR" && mv --no-target-directory "$BACK_NEW" "$DIR" && debug "deleting $DIR and moving $BACK_NEW to $DIR"
-        fi
+        rm -rf "$BACK_OLD" && debug "deleting the $BACK_OLD directory"
       fi
     fi
   done
@@ -402,8 +402,8 @@ do_sync() {
     # this is the hdd bound backup in case of power failure
     [[ ${DIR##*/} == .* ]] && BACKUP="${DIR%/*}/${DIR##*/}-backup_asd" ||
       BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
-    [[ ${DIR##*/} == .* ]] && BACK_NEW="${DIR%/*}/${DIR##*/}-backup_asd-new" ||
-      BACK_NEW="${DIR%/*}/.${DIR##*/}-backup_asd-new"
+    [[ ${DIR##*/} == .* ]] && BACK_OLD="${DIR%/*}/${DIR##*/}-backup_asd-old" ||
+      BACK_OLD="${DIR%/*}/.${DIR##*/}-backup_asd-old"
     USER=$(stat -c %U "$DIR")
     GROUP=$(id -g "$USER")
     TMP="$VOLATILE/$ASDNAME-$USER$DIR"
@@ -416,6 +416,7 @@ do_sync() {
       # retain permissions on sync target
       PREFIXP=$(stat -c %a "$DIR")
       [[ -r "$TMP" ]] || install -dm"$PREFIXP" --owner="$USER" --group="$GROUP" "$TMP"
+      [[ -r "$BACKUP" ]] || install -dm"$PREFIXP" --owner="$USER" --group="$GROUP" "$BACKUP"
 
       if [[ $OLFS -eq 1 ]]; then
         debug "ensuring overlay directories"
@@ -427,28 +428,33 @@ do_sync() {
         fi
       fi
 
-      # backup target and link to tmpfs container
-      if [[ $(readlink "$DIR") != "$TMP" ]]; then
-        debug "moving $DIR to $BACKUP"
-        mv --no-target-directory "$DIR" "$BACKUP"
-        debug "symlinking $TMP -> $DIR"
-        ln -s "$TMP" "$DIR"
-        debug "Changing ownership of $DIR to $USER and $GROUP"
-        chown -h "$USER":"$GROUP" "$DIR"
-        debug "Creating new linked backup directory $BACK_NEW"
-        set -x
-        rm -rf "$BACK_NEW" && rsync -aogX --link-dest="$BACKUP" --exclude .flagged "$BACKUP/" "$BACK_NEW/" --info=progress2
-        set +x
-      fi
-
       # sync the tmpfs targets to the disc
       if [[ -e "$TMP"/.flagged ]]; then
-        debug "Syncing $TMP and $BACK_NEW"
+        debug "Syncing $TMP and $BACKUP"
         # don't do inplace sync
         set -x
-        rsync -aX --delete-after --link-dest="$BACKUP" --exclude .flagged "$TMP/" "$BACK_NEW/" --info=progress2
+        rsync -aX --delete-after --exclude .flagged "$TMP/" "$BACKUP/" --info=progress2
         set +x
       else
+        # backup target and link to tmpfs container
+        debug "Bind mounting $DIR -> $BACKUP"
+        mount --rbind --make-private -o noatime "$DIR" "$BACKUP"
+        if [[ $CRRE -eq 1 ]];then
+          debug "Creating new linked backup directory $BACK_OLD"
+          tempfile=$(mktemp)
+
+          set -x
+          # this copies all the files
+          find "$BACKUP" -type l -printf '%P\n' > "$tempfile"
+          rm -rf "$BACK_OLD" && rsync -aX --no-links --link-dest="$DIR" "$DIR/" "$BACK_OLD/" --info=progress2
+
+          # this is used to handle the symlinks
+          rsync -aXl --files-from="$tempfile" "$DIR/" "$BACK_OLD/" --info=progress2
+
+          set +x
+          rm "$tempfile"
+        fi
+
         # initial sync
         if [[ $OLFS -eq 1 ]]; then
           debug "Mounting overlay directory"
@@ -460,10 +466,13 @@ do_sync() {
         else
           debug "Doing initial sync with $BACKUP and $TMP"
           set -x
-          rsync -aX --append "$BACKUP/" "$TMP/" --info=progress2
+          rsync -aXl --append "$BACKUP/" "$TMP/" --info=progress2
           set +x
         fi
-        touch "$DIR"/.flagged
+        debug "bind mounting $TMP -> $DIR"
+        mount --rbind --make-private -o noatime "$TMP" "$DIR"
+
+        touch "$TMP"/.flagged
       fi
     fi
   done
@@ -481,8 +490,8 @@ do_unsync() {
     # this is the hdd bound backup in case of power failure
     [[ ${DIR##*/} == .* ]] && BACKUP="${DIR%/*}/${DIR##*/}-backup_asd" ||
       BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
-    [[ ${DIR##*/} == .* ]] && BACK_NEW="${DIR%/*}/${DIR##*/}-backup_asd-new" ||
-      BACK_NEW="${DIR%/*}/.${DIR##*/}-backup_asd-new"
+    [[ ${DIR##*/} == .* ]] && BACK_OLD="${DIR%/*}/${DIR##*/}-backup_asd-old" ||
+      BACK_OLD="${DIR%/*}/.${DIR##*/}-backup_asd-old"
     USER=$(stat -c %U "$DIR")
     GROUP=$(id -g "$USER")
     TMP="$VOLATILE/$ASDNAME-$USER$DIR"
@@ -491,25 +500,21 @@ do_unsync() {
     debug "DIR: $DIR\nUSER: $USER\nGROUP: $GROUP\nTMP: $TMP\nUPPER: $UPPER\nWORK: $WORK\n"
 
     # remove link and move data from tmpfs to disk
-    if [[ -h "$DIR" ]]; then
-      debug "unlinking $DIR"
-      unlink "$DIR"
+    if mountpoint -q "$DIR"; then
       # this assumes that the backup is always
       # updated so be sure to invoke a sync before an unsync
+      debug "unmounting $DIR"
+      umount -R -f -l "$DIR"
+      debug "unmounting $BACKUP"
+      umount -R -f -l "$BACKUP" && rm -rf "$BACKUP" && debug "removing $BACKUP"
 
-      # restore original dirtree
-      if [[ -d "$BACK_NEW" ]]; then
-        rm -rf "$DIR" && mv --no-target-directory "$BACK_NEW" "$DIR" && debug "move $BACK_NEW to $DIR"
-        rm -rf "$BACKUP"
-      else
-        rm -rf "$DIR" && mv --no-target-directory "$BACKUP" "$DIR" && debug "move $BACKUP to $DIR"
-      fi
       if [[ $OLFS -eq 1 ]] && mountpoint -q "$TMP"; then
         umount -l "$TMP" && debug "unmount $TMP"
         rm -rf "$TMP" "$UPPER" "$WORK" && debug "removing overlayfs folders"
       else
         [[ -d "$TMP" ]] && rm -rf "$TMP" && debug "removing $TMP"
       fi
+      [[ $CRRE -eq 1 ]] && rm -rf "$BACK_OLD" && debug "removing $BACK_OLD"
     fi
   done
 

@@ -31,12 +31,17 @@ common/$(PN): common/$(PN).in
 
 help: install
 
+stop-asd:
+ifneq ($(PREFIX), /usr)
+	sudo -E asd unsync
+endif
+
 disable-systemd:
 ifeq ($(PREFIX), /usr)
 	systemctl stop asd asd-resync || /bin/true
 endif
 
-install-bin: disable-systemd common/$(PN)
+install-bin: stop-asd disable-systemd common/$(PN)
 	$(Q)echo -e '\033[1;32mInstalling main script...\033[0m'
 	$(INSTALL_DIR) "$(DESTDIR)$(BINDIR)"
 	$(INSTALL_PROGRAM) common/$(PN) "$(DESTDIR)$(BINDIR)/$(PN)"
