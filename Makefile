@@ -31,7 +31,12 @@ common/$(PN): common/$(PN).in
 
 help: install
 
-install-bin: common/$(PN)
+disable-systemd:
+ifeq ($(PREFIX), /usr)
+	systemctl stop asd asd-resync || /bin/true
+endif
+
+install-bin: disable-systemd common/$(PN)
 	$(Q)echo -e '\033[1;32mInstalling main script...\033[0m'
 	$(INSTALL_DIR) "$(DESTDIR)$(BINDIR)"
 	$(INSTALL_PROGRAM) common/$(PN) "$(DESTDIR)$(BINDIR)/$(PN)"
@@ -71,6 +76,7 @@ install-upstart:
 	$(INSTALL_DIR) "$(DESTDIR)$(CONFDIR)"
 	$(INSTALL_DIR) "$(DESTDIR)$(INITDIR_UPSTART)"
 	$(INSTALL_SCRIPT) init/asd.upstart "$(DESTDIR)$(INITDIR_UPSTART)/asd"
+
 
 install-systemd-all: install-bin install-man install-systemd
 
