@@ -9,7 +9,6 @@ To build from source, see the included INSTALL text document.
 
 ## Installation from Distro Packages
 * ![logo](http://www.monitorix.org/imgs/archlinux.png "arch logo")Arch: in the [AUR](https://aur.archlinux.org/packages/anything-sync-daemon).
-* ![logo](http://s18.postimg.org/w5jvz71mt/chakra.jpg "chakra logo")Chakra: in the [CCR](http://chakraos.org/ccr/packages.php?ID=3750).
 
 ## WARNING
 Users of versions older than v5.69 MUST stop asd before upgrading. Data loss can occur if you ignore this warning.
