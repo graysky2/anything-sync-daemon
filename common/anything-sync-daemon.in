@@ -39,6 +39,7 @@ if [[ "$ASDCONF" != "/etc/asd.conf" ]]; then
 fi
 LOCKFILE="/run/$ASDNAME-lock"
 debug "Waiting for lock...\n"
+# shellcheck disable=SC2015
 [[ ${FLOCKER} != "$0" ]] && exec env FLOCKER="$0" flock -e "$LOCKFILE" "$0" "$*" ||
 
 debug "${RED}ASDNAME:${NRM} $ASDNAME"
