@@ -9,12 +9,3 @@ To build from source, see the included INSTALL text document.
 
 ## Installation from Distro Packages
 * ![logo](http://www.monitorix.org/imgs/archlinux.png "arch logo")Arch: in the [AUR](https://aur.archlinux.org/packages/anything-sync-daemon).
-
-## WARNING
-Users of versions older than v5.69 MUST stop asd before upgrading. Data loss can occur if you ignore this warning.
-
-Arch Linux users do not need to worry about if asd is installed from the official PKGBUILD in the AUR. This contains a pre_upgrade scriptlet that will stop asd for you.
-
-I cannot do this for Ubuntu users building this manually.
-
-You have been warned.
