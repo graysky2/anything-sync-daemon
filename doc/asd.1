@@ -4,7 +4,7 @@
 \fBanything-sync-daemon \fP- Symlinks and syncs user specified dirs to RAM thus reducing HDD/SDD calls and speeding-up the system.
 \fB
 .SH DESCRIPTION
-Anything-sync-daemon (asd) is a tiny pseudo-daemon designed to manage user specified directories referred to as sync targets from here on out, in tmpfs and to periodically sync them back to the physical disc (HDD/SSD). This is accomplished via a symlinking step and an innovative use of rsync to maintain synchronization between a tmpfs copy and media-bound backups. Additionally, asd features several crash-recovery features.
+Anything-sync-daemon (asd) is a tiny pseudo-daemon designed to manage user specified directories referred to as sync targets from here on out, in tmpfs and to periodically sync them back to the physical disc (HDD/SSD). This is accomplished via a bind mounting step and an innovative use of rsync to maintain synchronization between a tmpfs copy and media-bound backups. Additionally, asd features several crash-recovery features.
 .PP
 Design goals of asd:
 .RS
@@ -130,7 +130,6 @@ Note that for these init systems, the supplied cron script (installed to /etc/cr
 At this time, the following distros are officially supported but there is no reason to think that asd will not run on another distro:
 .IP \(bu 3
 Arch Linux
-.IP \(bu 3
 .SH FAQ
 Q1: What is overlayfs mode?
 .PP
@@ -140,17 +139,17 @@ There are several versions of overlayfs available to the Linux kernel in product
 .PP
 See the example in the PREVIEW MODE section above which shows a system using overlayfs to illustrate the memory savings that can be achieved. Note the "overlayfs size" report compared to the total "dir size" report for each sync target. Be aware that these numbers will change depending on just how much data is written to the sync target, but in common use cases, the overlayfs size will always be less than the dir size.
 .PP
-Q2: Why do I see another directory ".foo-back-ovfs" when I enable overlayfs?
+Q2: Why do I see directory ".foo-backup_asd" ".foo-backup_asd-old"?
 .PP
-A2: The way overlayfs works is to mount a read-only base copy (so-called lower dir) of the target, and manage the new data on top of that. In order to avoid resyncing to the read-only file system, a copy is used instead. So using overlayfs is a trade off: faster initial sync times and less memory usage vs. disk space.
+A2: The way the backup process of asd works is that it creates a hard linked clone of the original directory; this is known as .foo-backup_asd-old. The other .foo-backup_asd is just a bind mount to the original directory link which is used to access the contents of the original directory for overlay purposes.
 .PP
 Q3: My system crashed and asd didn't sync back. What do I do?
 .PP
-A3: The "last good" backup of your sync targets is just fine still sitting happily on your filesystem. Upon restarting asd (on a reboot for example), a check is preformed to see if the symlink to the tmpfs copy of your sync target is valid. If it is invalid, asd will snapshot the "last good" backup before it rotates it back into place. This is more for a sanity check that asd did no harm and that any data loss was a function of something else.
+A3: The "last good" backup of your sync targets is just fine still sitting happily on your filesystem. Upon restarting asd (on a reboot for example), a check is preformed to see if asd was exited in some corrupted state. If it is detected, asd will snapshot the "last good" backup before it rotates it back into place. Note that, since asd tries to decrease the disk usage, it never really "copies" the full contents of the directory and just uses the hardlinks to the previous files. And during the rsync step, it creates new files so that the previous hardlinks are untouched. So trying to modify the directory during the time asd is trying to backup can leave the directory in some corrupted state.
 .PP
 Q4: Where can I find this snapshot?
 .PP
-A4: You will find the snapshot in the same directory as the sync target and it will contain a date-time-stamp that corresponds to the time at which the recovery took place. For example, a /foo/bar snapshot will be /foo/.bar-backup_asd-crashrecovery-20141221_070112 -- of course, the date_time suffix will be different for you.
+A4: You will find the snapshot in the same directory as the sync target and it will contain a date-time-stamp that corresponds to the time at which the recovery took place. For example, a /foo/bar snapshot will be /foo/.bar-backup_asd-crashrecovery-20141221_070112.tar.zstd -- of course, the date_time suffix will be different for you.
 .PP
 Q5: How can I restore the snapshot?
 .PP
@@ -159,19 +158,21 @@ A5: Follow these steps:
 .IP 1. 4
 Stop asd.
 .IP 2. 4
-Confirm that there is no symlink to the sync target. If there is, asd did not stop correctly for other reasons.
+Confirm that the directories created by asd is not present. If they are, asd did not stop correctly for other reasons.
 .IP 3. 4
 Move the "bad" copy of the sync taget to a backup (don't blindly delete anything).
 .IP 4. 4
-Copy the snapshot directory to the expected sync target.
+Untar the snapshot directory to the expected sync target.
 .RE
 .PP
 Example using /foo/bar:
 .RS
 .IP 1. 4
-mv /foo/bar /for/bar-bad
+cd /foo
+.IP 1. 4
+mv bar bar-bad
 .IP 2. 4
-cp \fB-a\fP /foo/.bar-backup_asd-crashrecovery-20141221_070112 /foo/bar
+tar -xvf .bar-backup_asd-crashrecovery-20141221_070112.tar.zstd
 .RE
 .PP
 At this point, check that everything is fine with the data on /foo/bar and, if all is well, it is safe to delete the snapshot.
@@ -186,8 +187,6 @@ Discover a bug? Please open an issue on the project page linked below.
 .RS
 .IP \(bu 3
 Currently, asd cannot handle open files on a sync target so if a hung process has something open there, it can be messy.
-.IP \(bu 3
-If syncing a path where pacman (Arch Linux package manager) is expected to install files, pacman will stop the update since version 4.2 of pacman will refuse to install to a symlink. If you are syncing a path like this, you will need to stop asd prior to the package update.
 .SH ONLINE
 .IP \(bu 3
 Project page: https://github.com/graysky2/anything-sync-daemon
@@ -195,3 +194,5 @@ Project page: https://github.com/graysky2/anything-sync-daemon
 Wiki page: https://wiki.archlinux.org/index.php/Anything-sync-daemon
 .SH AUTHOR
 graysky (graysky AT archlinux DOT us)
+.SH MAINTAINER
+Manorit Chawdhry (manorit2001@gmail.com)

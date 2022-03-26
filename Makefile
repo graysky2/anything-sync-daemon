@@ -1,4 +1,4 @@
-VERSION = 5.86
+VERSION = 6.0.0
 PN = anything-sync-daemon
 
 PREFIX ?= /usr
@@ -25,13 +25,23 @@ INSTALL_DIR = $(INSTALL) -d
 
 Q = @
 
-common/$(PN): common/$(PN).in
+common/$(PN): Makefile common/$(PN).in
 	$(Q)echo -e '\033[1;32mSetting version\033[0m'
 	$(Q)$(SED) 's/@VERSION@/'$(VERSION)'/' common/$(PN).in > common/$(PN)
 
 help: install
 
-install-bin: common/$(PN)
+stop-asd:
+ifneq ($(PREFIX), /usr)
+	sudo -E asd unsync
+endif
+
+disable-systemd:
+ifeq ($(PREFIX), /usr)
+	systemctl stop asd asd-resync || /bin/true
+endif
+
+install-bin: stop-asd disable-systemd common/$(PN)
 	$(Q)echo -e '\033[1;32mInstalling main script...\033[0m'
 	$(INSTALL_DIR) "$(DESTDIR)$(BINDIR)"
 	$(INSTALL_PROGRAM) common/$(PN) "$(DESTDIR)$(BINDIR)/$(PN)"
@@ -71,6 +81,7 @@ install-upstart:
 	$(INSTALL_DIR) "$(DESTDIR)$(CONFDIR)"
 	$(INSTALL_DIR) "$(DESTDIR)$(INITDIR_UPSTART)"
 	$(INSTALL_SCRIPT) init/asd.upstart "$(DESTDIR)$(INITDIR_UPSTART)/asd"
+
 
 install-systemd-all: install-bin install-man install-systemd
 
