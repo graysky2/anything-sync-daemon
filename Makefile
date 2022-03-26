@@ -1,4 +1,4 @@
-VERSION = 5.86
+VERSION = 6.0.0
 PN = anything-sync-daemon
 
 PREFIX ?= /usr
@@ -25,7 +25,7 @@ INSTALL_DIR = $(INSTALL) -d
 
 Q = @
 
-common/$(PN): common/$(PN).in
+common/$(PN): Makefile common/$(PN).in
 	$(Q)echo -e '\033[1;32mSetting version\033[0m'
 	$(Q)$(SED) 's/@VERSION@/'$(VERSION)'/' common/$(PN).in > common/$(PN)
 
