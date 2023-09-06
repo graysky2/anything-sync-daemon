@@ -1,0 +1,4 @@
+# `nix build` and friends' output links
+result
+result-*
+repl-result-*
