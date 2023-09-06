@@ -16,12 +16,15 @@ ediag() {
 }
 
 # For debug, add DEBUG=1 asd
-debug() {
-  if [[ -v $DEBUG && $DEBUG -eq 1 ]]
-  then
-    echo -e "$@"
-  fi
-}
+if [[ "${DEBUG:-}" = 1 ]]; then
+  debug() {
+    ediag "$@"
+  }
+else
+  debug() {
+    :
+  }
+fi
 
 set -e
 Error() {
