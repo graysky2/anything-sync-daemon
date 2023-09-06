@@ -29,6 +29,7 @@
         inputs.flake-parts.flakeModules.easyOverlay
         inputs.treefmt-nix.flakeModule
 
+        ./nix/checks.nix
         ./nix/devshells.nix
         ./nix/nixos-modules.nix
         ./nix/packages.nix
