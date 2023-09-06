@@ -5,6 +5,8 @@
 # Inspired by some code originally written by Colin Verot
 #
 
+readonly PS4='+ ${BASH_SOURCE:-${0}}@${LINENO:-0}${FUNCNAME:+#${FUNCNAME}()}: '
+
 # For debug, add DEBUG=1 asd
 debug() {
   if [[ -v $DEBUG && $DEBUG -eq 1 ]]
