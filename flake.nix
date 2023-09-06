@@ -17,13 +17,20 @@
     inputs.flake-parts.lib.mkFlake {inherit inputs;} ({lib, ...}: {
       debug = true;
 
-      systems = ["aarch64-linux" "x86_64-linux"];
+      systems = lib.subtractLists [
+        "armv5tel-linux"
+        "armv6l-linux"
+        "mipsel-linux"
+        "riscv64-linux"
+      ] (lib.intersectLists lib.systems.flakeExposed lib.platforms.linux);
 
       imports = [
         inputs.devshell.flakeModule
+        inputs.flake-parts.flakeModules.easyOverlay
         inputs.treefmt-nix.flakeModule
 
         ./nix/devshells.nix
+        ./nix/packages.nix
       ];
 
       perSystem = {
@@ -32,6 +39,9 @@
         ...
       }: {
         apps.devshell = self'.devShells.default.flakeApp;
+        overlayAttrs = {
+          inherit (config.packages) anything-sync-daemon;
+        };
       };
     });
 }
