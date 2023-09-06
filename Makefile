@@ -45,6 +45,7 @@ install-bin: stop-asd disable-systemd common/$(PN)
 	$(Q)echo -e '\033[1;32mInstalling main script...\033[0m'
 	$(INSTALL_DIR) "$(DESTDIR)$(BINDIR)"
 	$(INSTALL_PROGRAM) common/$(PN) "$(DESTDIR)$(BINDIR)/$(PN)"
+	$(INSTALL_PROGRAM) common/asd-mount-helper "$(DESTDIR)$(BINDIR)/asd-mount-helper"
 	ln -sf $(PN) "$(DESTDIR)$(BINDIR)/asd"
 	cp -n common/asd.conf "$(DESTDIR)$(CONFDIR)/asd.conf"
 	$(INSTALL_DIR) "$(DESTDIR)$(ZSHDIR)"
@@ -97,6 +98,7 @@ install:
 uninstall-bin:
 	$(RM) "$(DESTDIR)$(BINDIR)/$(PN)"
 	$(RM) "$(DESTDIR)$(BINDIR)/asd"
+	$(RM) "$(DESTDIR)/$(BINDIR)/asd-mount-helper"
 	$(RM) "$(DESTDIR)/$(ZSHDIR)/_asd"
 	$(RM) "$(DESTDIR)/$(BSHDIR)/asd"
 

@@ -56,6 +56,7 @@
 
           postInstall = ''
             wrapProgram $out/bin/anything-sync-daemon --suffix PATH : "''${out}/bin" --suffix PATH : ${lib.makeBinPath buildInputs}
+            wrapProgram $out/bin/asd-mount-helper --suffix PATH : ${lib.makeBinPath (with pkgs; [coreutils utillinux])}
           '';
 
           meta = {
