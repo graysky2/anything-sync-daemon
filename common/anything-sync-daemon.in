@@ -127,6 +127,18 @@ unset previous_extglob_setting
 [[ -z "$VOLATILE" ]] && VOLATILE=/tmp
 debug "Volatile dir: $VOLATILE"
 
+is_truthy() {
+  local b="${1?}"
+  case "${b,,}" in
+    y|yes|true|t|on|1|enabled|enable|use)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 # bail if $VOLATILE isn't tmpfs
 df -T "$VOLATILE" | grep -m 1 -q '\( tmpfs \|^/dev/zram\)' || {
 echo "$VOLATILE is not tmpfs/zram so running asd is pointless. Aborting." >&2
@@ -136,27 +148,22 @@ exit 1; }
 debug "Hardlink safety check: $ENABLE_HARDLINK_SAFETY_CHECK"
 
 # simple function to determine user intent rather than using a null value
-case "${USE_OVERLAYFS,,}" in
-  y|yes|true|t|on|1|enabled|enable|use)
-    OLFS=1
-    ;;
-  *)
-    OLFS=0
-    ;;
-esac
+if is_truthy "${USE_OVERLAYFS:-}"; then
+  OLFS=1
+else
+  OLFS=0
+fi
 
 # since the default for this one is a yes, need to force a null value to yes
 [[ -z "${USE_BACKUPS,,}" ]] && USE_BACKUPS="yes"
 debug "Backups enabled: $USE_BACKUPS"
 
-case "${USE_BACKUPS,,}" in
-  y|yes|true|t|on|1|enabled|enable|use)
-    CRRE=1
-    ;;
-  *)
-    CRRE=0
-    ;;
-esac
+if is_truthy "$USE_BACKUPS"; then
+  CRRE=1
+else
+  CRRE=0
+fi
+
 debug "Crash recovery enabled: $CRRE"
 
 # determine is we are using overlayfs (v22 and below) or overlay (v23 and above)
