@@ -7,6 +7,14 @@
 
 readonly PS4='+ ${BASH_SOURCE:-${0}}@${LINENO:-0}${FUNCNAME:+#${FUNCNAME}()}: '
 
+diag() {
+  echo "$@" >&2
+}
+
+ediag() {
+  diag -e "$@"
+}
+
 # For debug, add DEBUG=1 asd
 debug() {
   if [[ -v $DEBUG && $DEBUG -eq 1 ]]
