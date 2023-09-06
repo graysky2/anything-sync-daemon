@@ -30,6 +30,7 @@
         inputs.treefmt-nix.flakeModule
 
         ./nix/devshells.nix
+        ./nix/nixos-modules.nix
         ./nix/packages.nix
       ];
 
