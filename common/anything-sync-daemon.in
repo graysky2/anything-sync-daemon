@@ -276,6 +276,81 @@ verbosely() {
   return 0
 }
 
+# Call a provided command for each entry in `WHATTOSYNC`, setting certain
+# variables for use within the command.
+for_each_dir() {
+  if (( "$#" < 1 )); then
+    ediag "${RED}INTERNAL ERROR:${NRM} Usage: ${FUNCNAME[0]} <command> [<arg> ...]"
+    return 1
+  fi
+
+  local DIR BACKUP BACK_OLD
+
+  # Variables defined in this loop are expected to be used by the callback
+  # command.  We don't need to export them, and it's not a problem if they
+  # aren't used in the loop body.
+  # shellcheck disable=SC2034
+  for DIR in "${WHATTOSYNC[@]}"; do
+    # did user define a real dir
+    # this is the hdd bound backup in case of power failure
+    if [[ ${DIR##*/} == .* ]]; then
+      BACKUP="${DIR}-backup_asd"
+    else
+      BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
+    fi
+
+    BACK_OLD="${BACKUP}-old"
+
+    if [[ -d "$DIR" ]]; then
+      local DIR_USER DIR_GROUP
+      DIR_USER="$(stat -c %U "$DIR" 2>/dev/null)" || :
+      DIR_GROUP="$(id -gn "$DIR_USER" 2>/dev/null)" || :
+
+      local DIR_TMP="${VOLATILE}/${ASDNAME}-${DIR_USER}${DIR}"
+      local DIR_UPPER="${VOLATILE}/${ASDNAME}-${DIR_USER}${DIR}-rw"
+      local DIR_WORK="${VOLATILE}/.${ASDNAME}-${DIR_USER}${DIR}"
+
+      local USER="$DIR_USER"
+      local GROUP="$DIR_GROUP"
+      local TMP="$DIR_TMP"
+      local UPPER="$DIR_UPPER"
+      local WORK="$DIR_WORK"
+    fi
+
+    if [[ -d "$BACKUP" ]]; then
+      local BACK_USER BACK_GROUP
+      BACK_USER="$(stat -c %U "$BACKUP" 2>/dev/null)" || :
+      BACK_GROUP="$(id -gn "$BACK_USER" 2>/dev/null)" || :
+
+      local BACK_TMP="${VOLATILE}/${ASDNAME}-${BACK_USER}${DIR}"
+      local BACK_UPPER="${VOLATILE}/${ASDNAME}-${BACK_USER}${DIR}-rw"
+      local BACK_WORK="${VOLATILE}/.${ASDNAME}-${BACK_USER}${DIR}"
+
+      local USER="${USER:-${BACK_USER}}"
+      local GROUP="${GROUP:-${BACK_GROUP}}"
+      local TMP="${TMP:-${BACK_TMP}}"
+      local UPPER="${UPPER:-${BACK_UPPER}}"
+      local WORK="${WORK:-${BACK_WORK}}"
+    fi
+
+    # Don't construct this unless the caller requested it; there are
+    # potentially many backups and there's no need to slow down code that
+    # won't use this by iterating over a bunch of directory entries.
+    if is_truthy "${NEED_CRASHArr:-}"; then
+      local -a CRASHArr=()
+      local crashed
+      for crashed in "${BACKUP}-${CRASH_RECOVERY_SUFFIX}-"*.tar.zstd; do
+        if [[ -e "$crashed" ]]; then
+          CRASHArr+=("$crashed")
+        fi
+      done
+      unset crashed
+    fi
+
+    "$@" || return
+  done
+}
+
 dep_check() {
   # Function is used to ensure all dependencies are installed
   debug "\n${BLU}Checking dependencies${NRM}"
