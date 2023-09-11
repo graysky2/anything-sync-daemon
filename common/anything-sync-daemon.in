@@ -138,6 +138,8 @@ previous_extglob_setting="$(shopt -p extglob || :)"
 shopt -s extglob
 
 # removing any trailing slash(es) from the list of directories to sync
+# explicitly declare the variable in case it was unset in `ASDCONF`.
+declare -a WHATTOSYNC
 WHATTOSYNC=("${WHATTOSYNC[@]%%+(/)}")
 VOLATILE="${VOLATILE%%+(/)}"
 
