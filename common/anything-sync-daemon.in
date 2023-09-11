@@ -86,24 +86,19 @@ debug "${RED}Lockfile:${NRM} $LOCKFILE\n"
 # Setup check /etc/asd.conf
 debug "Checking for existence of $ASDCONF"
 if [[ -f "$ASDCONF" ]]; then
-debug "Checking if asd is already running"
-  if [[ ! -f "$DAEMON_FILE" ]]; then
-    debug "Daemon file not found: asd is not running"
-    # do nothing if asd is currently running, otherwise
-    # make sure only comments and variables/arrays are defined to prevent
-    # problems
-    if grep -Eqv "^$|^\s*['\")#]|^[^ ]*=[^;]*" "$ASDCONF"; then
-      # found text that isn't a blank line, comment, or variable present so exit
-      echo -e " ${RED}ERROR:${NRM}${BLD} Syntax error(s) detected in ${BLU}$ASDCONF${NRM}"
-      echo -e "${NRM}${BLD}Line number: offending comment${NRM}"
-      grep -Evn "^$|^\s*['\")#]|^[^ ]*=[^;]*" "$ASDCONF"
-      exit 1
-    fi
+  debug "Checking if asd is already running"
+
+  if [[ -f "$DAEMON_FILE" ]]; then
+    debug "Daemon file found; asd is running"
   else
-    debug "Daemon file found: asd is running"
+    debug "Daemon file not found; asd is not running"
   fi
   # shellcheck source=./asd.conf
-  . "$ASDCONF"
+  . "$ASDCONF" || {
+    rc="$?"
+    ediag "${BLD}Error sourcing ${ASDCONF}; cannot continue.${NRM}"
+    exit "$rc"
+  }
 else
   echo -e " ${BLD}Cannot find $ASDCONF so bailing.${NRM}"
   echo -e " ${BLD}Reinstall package to use anything-sync-daemon.${NRM}"
@@ -116,7 +111,11 @@ if [[ -f "${DAEMON_FILE}.conf" ]]; then
   unset WHATTOSYNC USE_OVERLAYFS USE_BACKUPS VOLATILE
   ASDCONF="${DAEMON_FILE}.conf"
   # shellcheck source=./asd.conf
-  . "$ASDCONF"
+  . "$ASDCONF" || {
+    rc="$?"
+    ediag "${BLD}Error sourcing ${ASDCONF}; cannot continue.${NRM}"
+    exit "$rc"
+  }
 fi
 
 debug "" # just for an additional enter
