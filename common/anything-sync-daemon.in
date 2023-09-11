@@ -261,6 +261,27 @@ else
   }
 fi
 
+# For bind mounts, and for overlay mounts when `USE_OVERLAYFS` is in effect.
+need_sudo_to_mount() {
+  ! running_as_root
+}
+
+# Need `sudo` even when running as root in order to check directory ownership
+# in `asd-mount-helper`.
+need_sudo() {
+  [[ "${OLFS:-}" = 1 ]] || need_sudo_to_mount
+}
+
+if need_sudo_to_mount; then
+  run_mount_helper() {
+    sudo asd-mount-helper "$@"
+  }
+else
+  run_mount_helper() {
+    asd-mount-helper "$@"
+  }
+fi
+
 verbosely() {
   if (( "$#" < 1 )); then
     ediag "${RED}INTERNAL ERROR:${NRM} Usage: ${FUNCNAME[0]} <command> [<arg> ...]"
@@ -363,6 +384,10 @@ dep_check() {
   local -a deps=(
     rsync awk pv tar zstd
   )
+
+  if need_sudo; then
+    deps+=(sudo)
+  fi
 
   local dep
   local rc=0
