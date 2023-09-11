@@ -53,35 +53,101 @@ if [[ "${FLOCKER:-}" != "$0" ]]; then
   debug "flock found"
 fi
 
+debug_vars() {
+  local var
+  for var in "$@"; do
+    if [[ -v "$var" ]]; then
+      debug "${var}: ${!var}"
+    else
+      debug "${var}: <unset>"
+    fi
+  done
+}
+
 running_as_root() {
   local euid="${EUID:-$(id -u)}" || return
   (( euid == 0 ))
 }
 
-looks_like_systemd() {
+looks_like_systemd_system() {
   systemctl --system list-unit-files asd.service &>/dev/null \
+    || [[ -f /usr/lib/systemd/system/asd.service ]]
+}
+
+looks_like_systemd_user() {
+  systemctl --user list-unit-files asd.service &>/dev/null \
     || [[ -f /usr/lib/systemd/user/asd.service ]]
 }
+
+if running_as_root; then
+  looks_like_systemd() {
+    looks_like_systemd_system
+  }
+
+  systemctl_show() {
+    systemctl --system "$@"
+  }
+
+  if looks_like_systemd; then
+    ASDCONFDIR="${CONFIGURATION_DIRECTORY:-/etc/asd}"
+    ASDRUNDIR="${RUNTIME_DIRECTORY:-/run/asd}"
+  else
+    ASDCONFDIR=/etc/asd
+    ASDRUNDIR=/run/asd
+  fi
+
+  if [[ -f /etc/asd.conf ]]; then
+    diag -n "Warning: using legacy configuration file /etc/asd.conf, "
+    diag "please consider migrating it to /etc/asd/asd.conf."
+    ASDCONFDIR=/etc
+  fi
+else
+  looks_like_systemd() {
+    looks_like_systemd_user
+  }
+
+  systemctl_show() {
+    systemctl --user "$@"
+  }
+
+  if looks_like_systemd; then
+    ASDCONFDIR="${CONFIGURATION_DIRECTORY:-${XDG_CONFIG_HOME:-${HOME?}/.config}/asd}"
+    ASDRUNDIR="${RUNTIME_DIRECTORY:-${XDG_RUNTIME_DIR:-/run/user/${EUID:-$(id -u)}}/asd}"
+  else
+    ASDCONFDIR="${XDG_CONFIG_HOME:-${HOME?}/.config}/asd"
+    ASDRUNDIR="${XDG_RUNTIME_DIR:-/run/user/${EUID:-$(id -u)}}/asd"
+  fi
+fi
 
 BLD="\e[01m"
 RED="\e[01;31m"
 GRN="\e[01;32m"
 BLU="\e[01;34m"
 NRM="\e[00m"
-VERS="@VERSION@"
 
-ASDCONF=${ASDCONF:-"/etc/asd.conf"}
-DAEMON_FILE=${DAEMON_FILE:-"/run/asd"}
-CRASH_RECOVERY_SUFFIX="crashrecovery"
-ASDNAME="asd"
-if [[ "$ASDCONF" != "/etc/asd.conf" ]]; then
-    suffix=$(realpath "$ASDCONF" | sha256sum | cut -b -16)
-    ASDNAME="$ASDNAME-$suffix"
-    if [[ "$DAEMON_FILE" == "/run/asd" ]]; then
-        DAEMON_FILE="/run/$ASDNAME"
-    fi
+VERS='@VERSION@'
+
+ASDCONF="${ASDCONF:-${ASDCONFDIR}/asd.conf}"
+DAEMON_FILE="${DAEMON_FILE:-${ASDRUNDIR}/asd.run}"
+ASDCONF_SNAPSHOT="${DAEMON_FILE}.conf"
+CRASH_RECOVERY_SUFFIX=crashrecovery
+ASDNAME=asd
+LOCKFILE="${ASDRUNDIR}/asd.lock"
+
+umask 027
+
+mkdir -p "$(dirname "$DAEMON_FILE")"
+
+if [[ "$ASDRUNDIR" = /run/asd ]] && [[ -e "$ASDRUNDIR" ]] && ! [[ -d "$ASDRUNDIR" ]]; then
+  diag -n "Warning: using legacy daemon file ${ASDRUNDIR}; "
+  diag "automatically migrating to new daemon file ${DAEMON_FILE}."
+
+  mv -f "$ASDRUNDIR" "$DAEMON_FILE"
+  mv -f "${ASDRUNDIR}.conf" "$ASDCONF_SNAPSHOT" 2>/dev/null
 fi
-LOCKFILE="/run/$ASDNAME-lock"
+
+mkdir -p "$ASDRUNDIR"
+
 # shellcheck disable=SC2015
 if [[ "${FLOCKER:-}" != "$0" ]]; then
   ediag "${RED}Waiting for lock...${NRM}"
@@ -111,16 +177,16 @@ if [[ -f "$ASDCONF" ]]; then
     exit "$rc"
   }
 else
-  echo -e " ${BLD}Cannot find $ASDCONF so bailing.${NRM}"
-  echo -e " ${BLD}Reinstall package to use anything-sync-daemon.${NRM}"
+  ediag " ${BLD}Cannot find ${ASDCONF} so bailing.${NRM}"
+  ediag " ${BLD}Reinstall package to use anything-sync-daemon.${NRM}"
   exit 1
 fi
 
 # if asd is active, source the snapshot of /etc/asd.conf preferentially
-if [[ -f "${DAEMON_FILE}.conf" ]]; then
+if [[ -f "$ASDCONF_SNAPSHOT" ]]; then
   debug "\nRestoring old asd.conf configurations"
   unset WHATTOSYNC USE_OVERLAYFS USE_BACKUPS VOLATILE
-  ASDCONF="${DAEMON_FILE}.conf"
+  ASDCONF="$ASDCONF_SNAPSHOT"
   # shellcheck source=./asd.conf source-path=SCRIPTDIR
   source "$ASDCONF" || {
     rc="$?"
@@ -152,16 +218,21 @@ shopt -s extglob
 declare -a WHATTOSYNC
 WHATTOSYNC=("${WHATTOSYNC[@]%%+(/)}")
 
-# setting everything back
-$previous_extglob_setting || :
-unset previous_extglob_setting
-
 if [[ -z "${VOLATILE:-}" ]]; then
-  VOLATILE=/tmp
+  if looks_like_systemd || ! running_as_root; then
+    VOLATILE="$ASDRUNDIR"
+  else
+    # Backward compatibility
+    VOLATILE=/tmp
+  fi
 fi
 
 # removing any trailing slash(es) from the volatile directory
 VOLATILE="${VOLATILE%%+(/)}"
+
+# setting everything back
+$previous_extglob_setting || :
+unset previous_extglob_setting
 
 debug "Volatile dir: ${VOLATILE}"
 
@@ -408,53 +479,54 @@ dep_check() {
 
 config_check() {
   debug "\n${GRN}Checking configs${NRM}"
+
+  local rc=0
+
   # nothing to do if these are empty
-  if [[ -z "${WHATTOSYNC[0]}" ]]; then
-    echo -e " ${BLD}Must define at least one directory in ${NRM}${BLU}$ASDCONF${NRM}"
-    exit 1
+  if (( "${#WHATTOSYNC[@]}" < 1 )); then
+    ediag " ${BLD}Must define at least one directory in ${NRM}${BLU}${ASDCONF}${NRM}"
+    rc=1
+  fi
+
+  local sudo_error
+  if [[ "${OLFS:-}" = 1 ]] && need_sudo_to_mount && ! sudo_error="$(sudo -kn asd-mount-helper 2>&1)"; then
+    ediag " ${RED} ERROR!${NRM}${BLD} To use overlayfs mode, your user needs passwordless sudo access to ${BLU}asd-mount-helper${NRM}."
+    ediag " ${BLD} Error was: ${sudo_error}${NRM}"
+    rc=1
   fi
 
   # make sure the user defined real dirs
-  for DIR in "${WHATTOSYNC[@]}"; do
-    debug "DIR: $DIR"
-    [[ ${DIR##*/} == .* ]] && BACKUP="${DIR%/*}/${DIR##*/}-backup_asd" ||
-      BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
-    [[ ${DIR##*/} == .* ]] && BACK_OLD="${DIR%/*}/${DIR##*/}-backup_asd-old" ||
-      BACK_OLD="${DIR%/*}/.${DIR##*/}-backup_asd-old"
-    debug "BACKUP: $BACKUP"
-    debug "BACK_OLD: $BACK_OLD"
-    if [[ ! -d "$DIR" ]]; then
-      if [[ ! -d "$BACK_OLD" ]]; then
-        echo -e "${BLD}Bad entry in your WHATTOSYNC array detected:${NRM}"
-        echo -e " ${BLD}${RED}$DIR${NRM}"
-        echo -e "${BLD}Edit ${BLU}$ASDCONF${NRM}${BLD} correcting the mistake and try again.${NRM}"
-        exit 1
+  _config_check() {
+    debug_vars DIR BACKUP BACK_OLD
+
+    if ! [[ -d "$DIR" ]]; then
+      if ! [[ -d "$BACK_OLD" ]]; then
+        ediag "${BLD}Bad entry in your WHATTOSYNC array detected:${NRM}"
+        ediag " ${BLD}${RED}${DIR}${NRM}"
+        ediag "${BLD}Edit ${BLU}${ASDCONF}${NRM}${BLD} correcting the mistake and try again.${NRM}"
+        return 1
       fi
     else
       # sanity check for hardlinks
-      if [[ ! -d "$BACK_OLD" && $ENABLE_HARDLINK_SAFETY_CHECK -ne 0 && -n $(find "$DIR" -type f -links +1) ]]; then
-        echo -e "$DIR:\n${RED} Presence of hardlinks found, asd might break them:${NRM}"
-        exit 1
-      else
-        debug "No hardlinks found"
+      if ! [[ -d "$BACK_OLD" ]] && [[ "$ENABLE_HARDLINK_SAFETY_CHECK" != 0 ]]; then
+        local first_link
+        if first_link="$(find "$DIR" -type f -links +1 -print -quit)" && [[ -n "$first_link" ]]; then
+          ediag "${DIR}:\n${RED} Presence of hardlinks found, asd might break them:${NRM}"
+          return 1
+        else
+          debug "No hardlinks found"
+        fi
       fi
     fi
-  done
-  debug "Configs seem to be fine"
-}
+  }
 
-root_check() {
-  # we call this to ensure that only the root user is calling the
-  # function why care? both the sync and unsync functions require
-  # root access to $DAEMON_FILE Running as unprivileged user will
-  # fuck up the sync process resulting in unhappy users
+  for_each_dir _config_check || rc="$?"
 
-  debug "\n${RED}Checking root permissions${NRM}"
-  if [[ $EUID -ne 0 ]]; then
-    echo -e " ${BLD}This function must be called as root!${NRM}" 1>&2
-    exit 1
+  if (( rc == 0 )); then
+    debug "Configs seem to be fine"
   fi
-  debug "Have root permissions"
+
+  return "$rc"
 }
 
 ungraceful_state_check() {
@@ -463,141 +535,146 @@ ungraceful_state_check() {
   # but the contents will be empty we need to simply remove the link
   # and rotate the backup into place
   debug "\n${BLU}checking ungraceful state${NRM}"
-  local DIR USER BACKUP TMP
-  for DIR in "${WHATTOSYNC[@]}"; do
-    # did user define a real dir
-    # this is the hdd bound backup in case of power failure
-    [[ ${DIR##*/} == .* ]] && BACKUP="${DIR%/*}/${DIR##*/}-backup_asd" ||
-      BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
-    [[ ${DIR##*/} == .* ]] && BACK_OLD="${DIR%/*}/${DIR##*/}-backup_asd-old" ||
-      BACK_OLD="${DIR%/*}/.${DIR##*/}-backup_asd-old"
-    if [[ -d "$BACKUP" ]]; then
-      USER=$(stat -c %U "$BACKUP")
-    else
-      USER=$(stat -c %U "$DIR")
+
+  _ungraceful_state_check() {
+    if [[ -d "${BACKUP?}" ]]; then
+      USER="${BACK_USER?}"
+      GROUP="${BACK_GROUP?}"
+      TMP="${BACK_TMP?}"
+      UPPER="${BACK_UPPER?}"
+      WORK="${BACK_WORK?}"
     fi
-    TMP="$VOLATILE/$ASDNAME-$USER$DIR"
-    UPPER="$VOLATILE/$ASDNAME-$USER$DIR-rw"
-    WORK="$VOLATILE/.$ASDNAME-$USER$DIR"
-    debug "DIR: $DIR\nBACKUP: $BACKUP\nBACK_OLD: $BACK_OLD\nUSER: $USER\nTMP: $TMP"
 
-    if [[ -e "$TMP"/.flagged || ! -d "$BACKUP" ]]; then
-      debug "No ungraceful state detected"
+    debug_vars DIR BACKUP BACK_OLD USER TMP
+
+    if [[ -v TMP ]] && [[ -e "${TMP?}/.flagged" ]] || ! [[ -d "$BACKUP" ]]; then
+      debug "No ungraceful state detected for ${DIR?}"
       # all is well so continue
-      continue
+      return
     else
-      echo "Ungraceful state detected for $DIR so fixing"
-      NOW=$(date +%Y%m%d_%H%M%S)
+      diag "Ungraceful state detected for ${DIR?} so fixing"
 
-      debug "unmounting $DIR"
-      mountpoint -q "$DIR" && umount -R -l "$DIR"
-      debug "unmounting $BACKUP"
-      mountpoint -q "$BACKUP" && umount -R -l "$BACKUP" && rm -rf "$BACKUP" && debug "removed $BACKUP dir"
+      local NOW
+      NOW="$(date +%Y%m%d_%H%M%S 2>/dev/null)" || :
 
-      mountpoint -q "$TMP" && umount "$TMP" && rm -rf "$TMP" "$UPPER" "$WORK" && debug "unmounted overlay dirs"
+      if mountpoint -q "$DIR"; then
+        ON_START="unmounting ${DIR}" verbosely run_mount_helper -d "$DIR" mountdownall || return
+      fi
 
-      if [[ -d "$BACK_OLD" ]]; then
-        if [[ $CRRE -eq 1 ]]; then
-          debug "copying $BACK_OLD to $BACKUP-$CRASH_RECOVERY_SUFFIX-$NOW.tar.zstd"
-          tar cf - -C "${BACK_OLD%/*}" "${BACK_OLD##*/}" | pv -s "$(du -sb "$BACK_OLD" | awk '{print $1}')" | zstd > "$BACKUP-$CRASH_RECOVERY_SUFFIX-$NOW.tar.zstd"
+      if mountpoint -q "$BACKUP"; then
+        ON_START="unmounting ${BACKUP}" verbosely run_mount_helper -d "$BACKUP" mountdownall || return
+        rm -rf "$BACKUP"
+        debug "removed ${BACKUP} dir"
+      fi
+
+      if mountpoint -q "$TMP"; then
+        ON_START="unmounting overlay dirs" verbosely run_mount_helper -v "$OLFSVER" -l "$BACKUP" -u "$UPPER" -w "$WORK" -d "$TMP" mountdown || return
+        rm -rf "$TMP" "$UPPER" "$WORK"
+        debug "unmounted overlay dirs"
+      fi
+
+      if [[ -d "${BACK_OLD?}" ]]; then
+        if [[ "$CRRE" = 1 ]]; then
+          local BACK_NEW="${BACKUP}-${CRASH_RECOVERY_SUFFIX}-${NOW}.tar.zstd"
+          debug "copying ${BACK_OLD} to ${BACK_NEW}"
+          tar cf - -C "${BACK_OLD%/*}" "${BACK_OLD##*/}" | pv -s "$(du -sb "$BACK_OLD" | awk '{print $1}')" | zstd > "$BACK_NEW" || return
         fi
-        rm -rf "$BACK_OLD" && debug "deleting the $BACK_OLD directory"
+
+        rm -rf "$BACK_OLD"
+        debug "deleted the ${BACK_OLD} directory"
       fi
     fi
-  done
+  }
+
+  for_each_dir _ungraceful_state_check
 }
 
 cleanup() {
   debug "\n${BLU}Cleaning up crashrecoveries${NRM}"
-  local DIR USER GROUP BACKUP TMP
-  for DIR in "${WHATTOSYNC[@]}"; do
-    # this is the hdd bound backup in case of power failure
-    [[ ${DIR##*/} == .* ]] && BACKUP="${DIR%/*}/${DIR##*/}-backup_asd" ||
-      BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
-    USER=$(stat -c %U "$DIR")
-    GROUP=$(id -g "$USER")
-    TMP="$VOLATILE/$ASDNAME-$USER$DIR"
-    UPPER="$VOLATILE/$ASDNAME-$USER$DIR-rw"
-    WORK="$VOLATILE/.$ASDNAME-$USER$DIR"
-    debug "DIR: $DIR\nUSER: $USER\nGROUP: $GROUP\nTMP: $TMP\nUPPER: $UPPER\nWORK: $WORK"
 
-    mapfile -t CRASHArr < <(find "${BACKUP%/*}" -maxdepth 1 -name "${BACKUP##*/}-$CRASH_RECOVERY_SUFFIX-*" 2>/dev/null|sort -r)
+  _cleanup() {
+    debug_vars DIR USER GROUP TMP UPPER WORK
 
-    if [[ ${#CRASHArr[@]} -gt 0 ]]; then
-      echo -e "${BLD}Deleting ${#CRASHArr[@]} crashrecovery dir(s) for sync target ${BLU}$DIR${NRM}"
+    if (( "${#CRASHArr[@]}" > 0 )); then
+      ediag "${BLD}Deleting ${#CRASHArr[*]} crashrecovery dir(s) for sync target ${BLU}${DIR?}${NRM}"
+      local backup
       for backup in "${CRASHArr[@]}"; do
-        echo -e "${BLD}${RED} $backup${NRM}"
-        debug "removing $backup"
+        ediag "${BLD}${RED} ${backup}${NRM}"
+        debug "removing ${backup}"
         rm -rf "$backup"
       done
-      unset CRASHArr
     else
-      echo -e "${BLD}Found no crashrecovery dirs for: ${BLU}$DIR${NRM}${BLD}${NRM}"
+      ediag "${BLD}Found no crashrecovery dirs for: ${BLU}${DIR?}${NRM}${BLD}${NRM}"
     fi
-    echo
-  done
+
+    diag
+  }
+
+  NEED_CRASHArr=1 for_each_dir _cleanup
 }
 
 enforce() {
   debug "\n${BLU}Enforcing number of backups${NRM}"
-  local DIR BACKUP
-  for DIR in "${WHATTOSYNC[@]}"; do
-    # this is the hdd bound backup in case of power failure
-    [[ ${DIR##*/} == .* ]] && BACKUP="${DIR%/*}/${DIR##*/}-backup_asd" ||
-      BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
-    debug "DIR: $DIR\nBACKUP: $BACKUP"
-    mapfile -t CRASHArr < <(find "${BACKUP%/*}" -maxdepth 1 -name "${BACKUP##*/}-$CRASH_RECOVERY_SUFFIX-*" 2>/dev/null|sort -r)
 
-    if [[ ${#CRASHArr[@]} -gt $BACKUP_LIMIT ]]; then
-      debug "The backups are greater than $BACKUP_LIMIT"
+  _enforce() {
+    debug_vars DIR BACKUP
+
+    if (( "${#CRASHArr[@]}" > BACKUP_LIMIT )); then
+      debug "The backups are greater than ${BACKUP_LIMIT}"
+      local remove
       for remove in "${CRASHArr[@]:$BACKUP_LIMIT}"; do
-        debug "removing $remove"
+        debug "removing ${remove}"
         rm -rf "$remove"
       done
     else
-      debug "The backups are less than $BACKUP_LIMIT, nothing to do"
+      debug "The backups are less than ${BACKUP_LIMIT}, nothing to do"
     fi
-    unset CRASHArr
-  done
+  }
+
+  NEED_CRASHArr=1 for_each_dir _enforce
 }
 
 do_sync() {
   debug "\n${GRN}Syncing files${NRM}"
 
-  # make a snapshot of /etc/asd.conf and redefine its location to tmpfs while
-  # asd is running to keep any edits made to the live /etc/asd.conf from
-  # potentially orphaning the tmpfs copies thus preserving the data
-  [[ ! -f "${DAEMON_FILE}.conf" ]] && cp "$ASDCONF" "${DAEMON_FILE}.conf" && debug "copied $ASDCONF to ${DAEMON_FILE}.conf"
+  # make a snapshot of the current configuration on the tmpfs while asd is
+  # running to keep any edits made to the live `ASDCONF` from potentially
+  # orphaning the tmpfs copies thus preserving the data
+  if ! [[  -f "$ASDCONF_SNAPSHOT" ]]; then
+    mkdir -p "$(dirname "$ASDCONF_SNAPSHOT")"
+    ON_START="creating configuration snapshot at ${ASDCONF_SNAPSHOT}" \
+      verbosely declare -p BACKUP_LIMIT DEBUG ENABLE_HARDLINK_SAFETY_CHECK USE_BACKUPS USE_OVERLAYFS VOLATILE WHATTOSYNC > "$ASDCONF_SNAPSHOT" || return
+  fi
 
   # sync to tmpfs and back again
-  local DIR USER GROUP BACKUP TMP
-  for DIR in "${WHATTOSYNC[@]}"; do
-    # this is the hdd bound backup in case of power failure
-    [[ ${DIR##*/} == .* ]] && BACKUP="${DIR%/*}/${DIR##*/}-backup_asd" ||
-      BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
-    [[ ${DIR##*/} == .* ]] && BACK_OLD="${DIR%/*}/${DIR##*/}-backup_asd-old" ||
-      BACK_OLD="${DIR%/*}/.${DIR##*/}-backup_asd-old"
-    USER=$(stat -c %U "$DIR")
-    GROUP=$(id -g "$USER")
-    TMP="$VOLATILE/$ASDNAME-$USER$DIR"
-    UPPER="$VOLATILE/$ASDNAME-$USER$DIR-rw"
-    WORK="$VOLATILE/.$ASDNAME-$USER$DIR"
-    debug "\nDIR: $DIR\nUSER: $USER\nGROUP: $GROUP\nTMP: $TMP\nUPPER: $UPPER\nWORK: $WORK\n"
+  _do_sync() {
+    debug_vars DIR USER GROUP BACKUP TMP UPPER WORK
 
     # make tmpfs container
     if [[ -d "$DIR" ]]; then
       # retain permissions on sync target
-      PREFIXP=$(stat -c %a "$DIR")
-      [[ -r "$TMP" ]] || install -dm"$PREFIXP" --owner="$USER" --group="$GROUP" "$TMP"
-      [[ -r "$BACKUP" ]] || install -dm"$PREFIXP" --owner="$USER" --group="$GROUP" "$BACKUP"
+      PREFIXP="$(stat -c %a "$DIR" 2>/dev/null)" || :
+      PREFIXP="${PREFIXP:-0750}"
+
+      if ! [[ -r "$TMP" ]]; then
+        verbosely install -dm"$PREFIXP" --owner="${USER?}" --group="${GROUP?}" "$TMP" || return
+      fi
+
+      if ! [[ -r "$BACKUP" ]]; then
+        verbosely install -dm"$PREFIXP" --owner="$USER" --group="$GROUP" "$BACKUP" || return
+      fi
 
       if [[ $OLFS -eq 1 ]]; then
         debug "ensuring overlay directories"
-        if [[ $OLFSVER -eq 23 ]]; then
-          [[ -r "$UPPER" ]] || install -dm"$PREFIXP" --owner="$USER" --group="$GROUP" "$UPPER"
-          [[ -r "$WORK" ]] || install -dm"$PREFIXP" --owner="$USER" --group="$GROUP" "$WORK"
-        elif [[ $OLFSVER -eq 22 ]]; then
-          [[ -r "$UPPER" ]] || install -dm"$PREFIXP" --owner="$USER" --group="$GROUP" "$UPPER"
+
+        if ! [[ -r "$UPPER" ]]; then
+          verbosely install -dm"$PREFIXP" --owner="$USER" --group="$GROUP" "$UPPER" || return
+        fi
+
+        if [[ "$OLFSVER" = 23 ]]; then
+          if ! [[ -r "$WORK" ]]; then
+            verbosely install -dm"$PREFIXP" --owner="$USER" --group="$GROUP" "$WORK" || return
+          fi
         fi
       fi
 
@@ -606,170 +683,197 @@ do_sync() {
         debug "Syncing $TMP and $BACKUP"
         # don't do inplace sync
         set -x
-        rsync -aX --delete-after --exclude .flagged "$TMP/" "$BACKUP/" --info=progress2
+        rsync -aX --delete-after --exclude .flagged "$TMP/" "$BACKUP/" --info=progress2 || return
         set +x
       else
         # backup target and link to tmpfs container
-        debug "Bind mounting $DIR -> $BACKUP"
-        mount --rbind --make-private -o noatime "$DIR" "$BACKUP"
-        if [[ $CRRE -eq 1 ]];then
-          debug "Creating new linked backup directory $BACK_OLD"
+        ON_START="Bind mounting ${DIR} -> ${BACKUP}" verbosely run_mount_helper -s "$DIR" -d "$BACKUP" mountupbind || return
+
+        if [[ "$CRRE" = 1 ]];then
+          debug "Creating new linked backup directory ${BACK_OLD}"
           tempfile=$(mktemp)
 
           set -x
           # this copies all the files
           find "$BACKUP" -type l -printf '%P\n' > "$tempfile"
-          rm -rf "$BACK_OLD" && rsync -aX --no-links --link-dest="$DIR" "$DIR/" "$BACK_OLD/" --info=progress2
+          rm -rf "$BACK_OLD"
+          rsync -aX --no-links --link-dest="$DIR" "$DIR/" "$BACK_OLD/" --info=progress2 || return
 
           # this is used to handle the symlinks
-          rsync -aXl --files-from="$tempfile" "$DIR/" "$BACK_OLD/" --info=progress2
+          rsync -aXl --files-from="$tempfile" "$DIR/" "$BACK_OLD/" --info=progress2 || return
 
           set +x
           rm "$tempfile"
         fi
 
         # initial sync
-        if [[ $OLFS -eq 1 ]]; then
-          debug "Mounting overlay directory"
-          if [[ $OLFSVER -eq 23 ]]; then
-            mount -t overlay overlaid -olowerdir="$BACKUP",upperdir="$UPPER",workdir="$WORK" "$TMP"
-          elif [[ $OLFSVER -eq 22 ]]; then
-            mount -t overlayfs overlaid -olowerdir="$BACKUP",upperdir="$UPPER" "$TMP"
-          fi
+        if [[ "$OLFS" = 1 ]]; then
+          ON_START="Mounting overlay directory" verbosely run_mount_helper -v "$OLFSVER" -l "$BACKUP" -u "$UPPER" -w "$WORK" -d "$TMP" mountup || return
         else
           debug "Doing initial sync with $BACKUP and $TMP"
           set -x
-          rsync -aXl --append "$BACKUP/" "$TMP/" --info=progress2
+          rsync -aXl --append "${BACKUP}/" "${TMP}/" --info=progress2 || return
           set +x
         fi
-        debug "bind mounting $TMP -> $DIR"
-        mount --rbind --make-private -o noatime "$TMP" "$DIR"
 
-        touch "$TMP"/.flagged
+        ON_START="bind mounting ${TMP} -> ${DIR}" verbosely run_mount_helper -s "$TMP" -d "$DIR" mountupbind || return
+
+        touch "${TMP}/.flagged" || return
       fi
     fi
-  done
-  echo -e "${BLD}Sync successful${NRM}"
+  }
 
-  debug "creating $DAEMON_FILE"
-  touch "$DAEMON_FILE"
+  for_each_dir _do_sync || {
+    local rc="$?"
+    ediag "${RED}Sync failed${NRM}"
+    return "$rc"
+  }
+
+  ediag "${BLD}Sync successful${NRM}"
+
+  ON_START="creating ${DAEMON_FILE}" verbosely touch "$DAEMON_FILE"
 }
 
 do_unsync() {
   debug "\n${RED}Unsyncing files${NRM}"
 
-  local DIR USER BACKUP TMP
-  for DIR in "${WHATTOSYNC[@]}"; do
-    # this is the hdd bound backup in case of power failure
-    [[ ${DIR##*/} == .* ]] && BACKUP="${DIR%/*}/${DIR##*/}-backup_asd" ||
-      BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
-    [[ ${DIR##*/} == .* ]] && BACK_OLD="${DIR%/*}/${DIR##*/}-backup_asd-old" ||
-      BACK_OLD="${DIR%/*}/.${DIR##*/}-backup_asd-old"
-    USER=$(stat -c %U "$DIR")
-    GROUP=$(id -g "$USER")
-    TMP="$VOLATILE/$ASDNAME-$USER$DIR"
-    UPPER="$VOLATILE/$ASDNAME-$USER$DIR-rw"
-    WORK="$VOLATILE/.$ASDNAME-$USER$DIR"
-    debug "DIR: $DIR\nUSER: $USER\nGROUP: $GROUP\nTMP: $TMP\nUPPER: $UPPER\nWORK: $WORK\n"
+  _do_unsync() {
+    debug_vars DIR USER GROUP TMP UPPER WORK
 
     # remove link and move data from tmpfs to disk
     if mountpoint -q "$DIR"; then
       # this assumes that the backup is always
       # updated so be sure to invoke a sync before an unsync
-      debug "unmounting $DIR"
-      umount -R -f -l "$DIR"
-      debug "unmounting $BACKUP"
-      umount -R -f -l "$BACKUP" && rm -rf "$BACKUP" && debug "removing $BACKUP"
+      ON_START="unmounting ${DIR}" verbosely run_mount_helper -d "$DIR" mountdownallforce || return
 
-      if [[ $OLFS -eq 1 ]] && mountpoint -q "$TMP"; then
-        umount -l "$TMP" && debug "unmount $TMP"
-        rm -rf "$TMP" "$UPPER" "$WORK" && debug "removing overlayfs folders"
-      else
-        [[ -d "$TMP" ]] && rm -rf "$TMP" && debug "removing $TMP"
+      ON_START="unmounting ${BACKUP}" verbosely run_mount_helper -d "$BACKUP" mountdownallforce || return
+
+      debug "removing ${BACKUP}"
+      rm -rf "$BACKUP"
+
+      if [[ "$OLFS" = 1 ]]; then
+        if mountpoint -q "$TMP"; then
+          ON_START="unmounting $TMP" verbosely run_mount_helper -d "$TMP" mountdownlazy || return
+
+          debug "removing overlayfs folders"
+          rm -rf "$TMP" "$UPPER" "$WORK"
+        fi
+      elif [[ -d "$TMP" ]]; then
+        debug "removing $TMP"
+        rm -rf "$TMP"
       fi
-      [[ $CRRE -eq 1 ]] && rm -rf "$BACK_OLD" && debug "removing $BACK_OLD"
+
+      if [[ "$CRRE" = 1 ]]; then
+        debug "removing $BACK_OLD"
+        rm -rf "$BACK_OLD"
+      fi
     fi
-  done
+  }
+
+  local rc=0
+  for_each_dir _do_unsync || rc="$?"
+
+  if (( rc == 0 )); then
+    ediag "${BLD}Unsync successful${NRM}"
+  else
+    ediag "${RED}Unsync failed${NRM}"
+  fi
 
   # delete daemon file in the end, so that unsync can be run again
   # incase of some failure midway
   # since unsync also requires sync before, if any of the DIRS are unsynced during last run,
   # they will be synced again before unsyncing not leading to any breakage
 
-  debug "Removing $DAEMON_FILE and ${DAEMON_FILE}.conf"
-  rm -f "$DAEMON_FILE" "${DAEMON_FILE}.conf"
+  debug "Removing ${DAEMON_FILE} and ${ASDCONF_SNAPSHOT}"
+  rm -f "$DAEMON_FILE" "$ASDCONF_SNAPSHOT"
 
-  echo -e "${BLD}Unsync successful${NRM}"
+  return "$rc"
 }
 
 parse() {
   if looks_like_systemd; then
     # running systemd
-    asd_state=$(systemctl show -p ActiveState --value asd)
-    resync_state=$(systemctl show -p ActiveState --value asd-resync.timer)
-    [[ "$asd_state" = "active" ]] && asd_color="${GRN}" || asd_color="${RED}"
-    [[ "$resync_state" = "active" ]] && resync_color="${GRN}" || resync_color="${RED}"
-    echo -e " ${BLD}Systemd service is currently ${asd_color}$asd_state${NRM}${BLD}.${NRM}"
-    echo -e " ${BLD}Systemd resync service is currently ${resync_color}$resync_state${NRM}${BLD}.${NRM}"
+    asd_state="$(systemctl_show -p ActiveState --value asd 2>/dev/null)" || :
+    resync_state="$(systemctl_show -p ActiveState --value asd-resync.timer 2>/dev/null)" || :
+
+    if [[ "$asd_state" = "active" ]]; then
+      asd_color="$GRN"
+    else
+      asd_color="$RED"
+    fi
+
+    if [[ "$resync_state" = "active" ]]; then
+      resync_color="$GRN"
+    else
+      resync_color="$RED"
+    fi
+
+    ediag " ${BLD}Systemd service is currently ${asd_color}${asd_state}${NRM}${BLD}.${NRM}"
+    ediag " ${BLD}Systemd resync service is currently ${resync_color}${resync_state}${NRM}${BLD}.${NRM}"
   else
     # using other init system + cron job for resync
-    [[ -x /etc/cron.hourly/asd-update ]] && resync_state="present" || resync_state="not present"
-    [[ "$resync_state" = "present" ]] && resync_color="${GRN}" || resync_color="${RED}"
-    echo -e " ${BLD}Daemon pid file is $([[ -f $DAEMON_FILE ]] &&
-      echo -e "${GRN}"present"${NRM}""${BLD}" || echo -e "${RED}"not present"${NRM}""${BLD}").${NRM}"
-    echo -e " ${BLD}Resync cronjob is ${resync_color}${resync_state}${NRM}${BLD}.${NRM}"
-  fi
-  [[ $OLFS -eq 1 ]] &&
-    echo -e "${BLD} Overlayfs v$OLFSVER is currently ${GRN}active${NRM}${BLD}.${NRM}" ||
-    echo -e "${BLD} Overlayfs technology is currently ${RED}inactive${NRM}${BLD}.${NRM}"
-  echo
-  echo -e "${BLD}Asd will manage the following per ${BLU}${ASDCONF}${NRM}${BLD} settings:${NRM}"
-  echo
-  local DIR USER GROUP BACKUP TMP
-  for DIR in "${WHATTOSYNC[@]}"; do
-    # this is the hdd bound backup in case of power failure
-    [[ ${DIR##*/} == .* ]] && BACKUP="${DIR%/*}/${DIR##*/}-backup_asd" ||
-      BACKUP="${DIR%/*}/.${DIR##*/}-backup_asd"
-    USER=$(stat -c %U "$DIR")
-    GROUP=$(id -g "$USER")
-    TMP="$VOLATILE/$ASDNAME-$USER$DIR"
-    UPPER="$VOLATILE/$ASDNAME-$USER$DIR-rw"
-    WORK="$VOLATILE/.$ASDNAME-$USER$DIR"
+    if [[ -x /etc/cron.hourly/asd-update ]]; then
+      resync_state="present"
+      resync_color="$GRN"
+    else
+      resync_state="not present"
+      resync_color="$RED"
+    fi
 
+    ediag -n " ${BLD}Daemon pid file is "
+    if [[ -f $DAEMON_FILE ]]; then
+      ediag "${GRN}present${NRM}${BLD}.${NRM}"
+    else
+      ediag "${RED}not present${NRM}${BLD}.${NRM}"
+    fi
+
+    ediag " ${BLD}Resync cronjob is ${resync_color}${resync_state}${NRM}${BLD}.${NRM}"
+  fi
+
+  if [[ "$OLFS" = 1 ]]; then
+    ediag "${BLD} Overlayfs v${OLFSVER} is currently ${GRN}active${NRM}${BLD}.${NRM}"
+  else
+    ediag "${BLD} Overlayfs technology is currently ${RED}inactive${NRM}${BLD}.${NRM}"
+  fi
+
+  diag
+  ediag "${BLD}Anything-sync-daemon will manage the following per ${BLU}${ASDCONF}${NRM}${BLD} settings:${NRM}"
+  diag
+
+  _parse() {
     # sync target dir size
     if [[ -d "$DIR" ]]; then
-      echo -en " ${BLD}owner/group id:"
-      echo -e "$(tput cr)""$(tput cuf 20)" "$USER/$GROUP${NRM}"
-      echo -en " ${BLD}target to manage:"
-      echo -e "$(tput cr)""$(tput cuf 20)" "${GRN}$DIR${NRM}"
-      echo -en " ${BLD}sync target:"
-      echo -e "$(tput cr)""$(tput cuf 20)" "${BLU}$BACKUP${NRM}"
-      echo -en " ${BLD}tmpfs target:"
-      echo -e "$(tput cr)""$(tput cuf 20)" "${RED}$TMP${NRM}"
-      echo -en " ${BLD}dir size:"
-      psize=$(du -Dh --max-depth=0 "$DIR" 2>/dev/null | awk '{ print $1 }')
-      echo -e "$(tput cr)$(tput cuf 20) $psize${NRM}"
-      if [[ $OLFS -eq 1 ]]; then
+      local justify
+      justify="$(tput cr)$(tput cuf 20) "
+      ediag " ${BLD}owner/group id:${justify}${USER}/${GROUP}${NRM}"
+      ediag " ${BLD}target to manage:${justify}${GRN}${DIR}${NRM}"
+      ediag " ${BLD}sync target:${justify}${BLU}${BACKUP}${NRM}"
+      ediag " ${BLD}tmpfs target:${justify}${RED}${TMP}${NRM}"
+      psize="$(du -Dh --max-depth=0 "$DIR" 2>/dev/null | awk '{ print $1 }')" || :
+      ediag " ${BLD}dir size:${justify}${psize:-unknown}${NRM}"
+
+      if [[ "$OLFS" = 1 ]]; then
         rwsize=$(du -Dh --max-depth=0 "$UPPER" 2>/dev/null | awk '{ print $1 }')
-        echo -en " ${BLD}overlayfs size:"
-        echo -e "$(tput cr)$(tput cuf 20) $rwsize${NRM}"
+        ediag " ${BLD}overlayfs size:${justify}${rwsize}${NRM}"
       fi
-      echo -en " ${BLD}recovery dirs:"
-      mapfile -t CRASHArr < <(find "${BACKUP%/*}" -maxdepth 1 -name "${BACKUP##*/}-$CRASH_RECOVERY_SUFFIX-*" 2>/dev/null|sort -r)
-      if [[ "${#CRASHArr[@]}" -eq 0 ]]; then
-        echo -e "$(tput cr)$(tput cuf 20) none${NRM}"
+
+      ediag -n " ${BLD}recovery dirs:"
+
+      if (( "${#CRASHArr[@]}" ==  0 )); then
+        ediag "${justify}none${NRM}"
       else
-        echo -e "$(tput cr)$(tput cuf 20) ${RED}${#CRASHArr[@]}${NRM}${BLD} <- delete with the c option${NRM}"
+        ediag "${justify}${RED}${#CRASHArr[@]}${NRM}${BLD} <- delete with the c option${NRM}"
         for backup in "${CRASHArr[@]}"; do
           psize=$(du -Dh --max-depth=0 "$backup" 2>/dev/null | awk '{ print $1 }')
-          echo -en " ${BLD} dir path/size:"
-          echo -e "$(tput cr)$(tput cuf 20) ${BLU}$backup ${NRM}${BLD}($psize)${NRM}"
+          ediag " ${BLD} dir path/size:${justify}${BLU}${backup} ${NRM}${BLD}(${psize})${NRM}"
         done
       fi
-      unset CRASHArr
-      echo
+
+      diag
     fi
-  done
+  }
+
+  NEED_CRASHArr=1 for_each_dir _parse
 }
 
 case "$1" in
@@ -787,7 +891,6 @@ case "$1" in
     ;;
   sync)
     if [[ ! -f "$DAEMON_FILE" ]]; then
-      root_check
       dep_check
       config_check
       ungraceful_state_check
@@ -799,7 +902,6 @@ case "$1" in
     ;;
   resync)
     if [[ -f "$DAEMON_FILE" ]]; then
-      root_check
       ungraceful_state_check
       do_sync
     else
@@ -809,7 +911,6 @@ case "$1" in
   unsync)
     # make sure the daemon ran to setup the links
     if [[ -f "$DAEMON_FILE" ]]; then
-      root_check
       ungraceful_state_check
       do_sync
       do_unsync
@@ -824,8 +925,8 @@ case "$1" in
     echo -e " ${BLD} ${NRM}${GRN}preview${NRM}${BLD}  Parse config file (${NRM}${BLU}${ASDCONF}${NRM}${BLD}) to see what will be managed.${NRM}"
     echo -e " ${BLD} ${NRM}${GRN}clean${NRM}${BLD}		Clean (delete without prompting) ALL crashrecovery dirs.${NRM}"
     echo -e " ${BLD} ${NRM}${GRN}resync${NRM}${BLD} Synchronize the tmpfs and media bound copy. Must be run as root user.${NRM}"
-    echo -e " ${BLD} ${NRM}${RED}sync${NRM}${BLD}   Force a manual sync. Must be run as root user and NOT recommended.${NRM}"
-    echo -e " ${BLD} ${NRM}${RED}unsync${NRM}${BLD} Force a manual unsync. Must be run as root user and NOT recommended.${NRM}"
+    echo -e " ${BLD} ${NRM}${RED}sync${NRM}${BLD}   Force a manual sync. NOT recommended.${NRM}"
+    echo -e " ${BLD} ${NRM}${RED}unsync${NRM}${BLD} Force a manual unsync. NOT recommended.${NRM}"
     echo
     echo -e " ${BLD}It is ${RED}HIGHLY DISCOURAGED${NRM}${BLD} to directly call $0 to sync or to unsync.${NRM}"
     if looks_like_systemd; then
