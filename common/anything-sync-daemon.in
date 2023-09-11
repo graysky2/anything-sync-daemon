@@ -162,10 +162,10 @@ if [[ "${FLOCKER:-}" != "$0" ]]; then
   FLOCKER="$0" exec flock -x "$LOCKFILE" "$BASH" "-$-" "$0" "$@"
 fi
 
-debug "${RED}ASDNAME:${NRM} $ASDNAME"
-debug "${BLU}Configuration file:${NRM} $ASDCONF"
-debug "${GRN}Daemon file:${NRM} $DAEMON_FILE"
-debug "${RED}Lockfile:${NRM} $LOCKFILE\n"
+debug "${RED}ASDNAME:${NRM} ${ASDNAME}"
+debug "${BLU}Configuration file:${NRM} ${ASDCONF}"
+debug "${GRN}Daemon file:${NRM} ${DAEMON_FILE}"
+debug "${RED}Lockfile:${NRM} ${LOCKFILE}\n"
 
 # Setup check /etc/asd.conf
 debug "Checking for existence of $ASDCONF"
@@ -211,7 +211,7 @@ if ! [[ "${BACKUP_LIMIT:=5}" =~ ^[[:digit:]]+$ ]]; then
   ediag " ${RED}ERROR:${NRM}${BLD} Bad value for BACKUP_LIMIT detected!${NRM}"
   exit 1
 fi
-debug "Backup limit: $BACKUP_LIMIT"
+debug "Backup limit: ${BACKUP_LIMIT}"
 
 # saving current extended pattern matching setting
 # command returns non zero exit code if the option is unset hence
@@ -296,7 +296,7 @@ debug "Crash recovery enabled: $CRRE"
 # the same filesystem, but not part of the same subtree.
 #
 # ubuntu 15.04 has both overlay and overlayfs so prefer version 23
-if [[ $OLFS -eq 1 ]]; then
+if [[ "$OLFS" = 1 ]]; then
   # first test if either module is manually loaded manually or hardcoded
   if grep -qiE "overlay$" /proc/filesystems 2>/dev/null; then
     OLFSVER=23
@@ -315,7 +315,7 @@ if [[ $OLFS -eq 1 ]]; then
 fi
 
 debug "overlayfs enabled: $OLFS"
-debug "overlayfs version: $OLFSVER"
+debug "overlayfs version: ${OLFSVER:-unknown}"
 
 # get distro name
 # first try os-release
@@ -672,7 +672,7 @@ do_sync() {
         verbosely install -dm"$PREFIXP" --owner="$USER" --group="$GROUP" "$BACKUP" || return
       fi
 
-      if [[ $OLFS -eq 1 ]]; then
+      if [[ "$OLFS" = 1 ]]; then
         debug "ensuring overlay directories"
 
         if ! [[ -r "$UPPER" ]]; then
@@ -688,7 +688,7 @@ do_sync() {
 
       # sync the tmpfs targets to the disc
       if [[ -e "$TMP"/.flagged ]]; then
-        debug "Syncing $TMP and $BACKUP"
+        debug "Syncing ${TMP} and ${BACKUP}"
         # don't do inplace sync
         set -x
         rsync -aX --delete-after --exclude .flagged "$TMP/" "$BACKUP/" --info=progress2 || return
@@ -718,7 +718,7 @@ do_sync() {
         if [[ "$OLFS" = 1 ]]; then
           ON_START="Mounting overlay directory" verbosely run_mount_helper -v "$OLFSVER" -l "$BACKUP" -u "$UPPER" -w "$WORK" -d "$TMP" mountup || return
         else
-          debug "Doing initial sync with $BACKUP and $TMP"
+          debug "Doing initial sync with ${BACKUP} and ${TMP}"
           set -x
           rsync -aXl --append "${BACKUP}/" "${TMP}/" --info=progress2 || return
           set +x
@@ -884,7 +884,7 @@ parse() {
   NEED_CRASHArr=1 for_each_dir _parse
 }
 
-case "$1" in
+case "${1:-}" in
   p|P|Parse|parse|Preview|preview|debug)
     header
     dep_check
@@ -905,7 +905,7 @@ case "$1" in
       do_sync
       enforce
     else
-      echo -e "${GRN}ASD is already running${NRM}"
+      ediag "${GRN}ASD is already running${NRM}"
     fi
     ;;
   resync)
@@ -913,7 +913,7 @@ case "$1" in
       ungraceful_state_check
       do_sync
     else
-      echo -e "${RED}ASD is not running${NRM}"
+      ediag "${RED}ASD is not running${NRM}"
     fi
     ;;
   unsync)
@@ -923,20 +923,20 @@ case "$1" in
       do_sync
       do_unsync
     else
-      echo -e "${RED}ASD is not running${NRM}"
+      ediag "${RED}ASD is not running${NRM}"
     fi
     ;;
   *)
-    echo -e "${BLD}Anything-sync-daemon v$VERS${NRM}"
+    echo -e "${BLD}Anything-sync-daemon v${VERS}${NRM}"
     echo
-    echo -e " ${BLD}$0 ${NRM}${GRN}[option]${NRM}"
+    echo -e " ${BLD}${0} ${NRM}${GRN}[option]${NRM}"
     echo -e " ${BLD} ${NRM}${GRN}preview${NRM}${BLD}  Parse config file (${NRM}${BLU}${ASDCONF}${NRM}${BLD}) to see what will be managed.${NRM}"
     echo -e " ${BLD} ${NRM}${GRN}clean${NRM}${BLD}		Clean (delete without prompting) ALL crashrecovery dirs.${NRM}"
     echo -e " ${BLD} ${NRM}${GRN}resync${NRM}${BLD} Synchronize the tmpfs and media bound copy. Must be run as root user.${NRM}"
     echo -e " ${BLD} ${NRM}${RED}sync${NRM}${BLD}   Force a manual sync. NOT recommended.${NRM}"
     echo -e " ${BLD} ${NRM}${RED}unsync${NRM}${BLD} Force a manual unsync. NOT recommended.${NRM}"
     echo
-    echo -e " ${BLD}It is ${RED}HIGHLY DISCOURAGED${NRM}${BLD} to directly call $0 to sync or to unsync.${NRM}"
+    echo -e " ${BLD}It is ${RED}HIGHLY DISCOURAGED${NRM}${BLD} to directly call ${0} to sync or to unsync.${NRM}"
     if looks_like_systemd; then
       echo -e " ${BLD}Instead, use systemd to start/stop anything-sync-daemon.${NRM}"
       echo
@@ -954,6 +954,5 @@ case "$1" in
     fi
     ;;
 esac
-exit 0
 
 # vim:set ts=2 sw=2 et:
