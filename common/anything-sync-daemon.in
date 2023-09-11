@@ -93,7 +93,8 @@ if [[ -f "$ASDCONF" ]]; then
   else
     debug "Daemon file not found; asd is not running"
   fi
-  # shellcheck source=./asd.conf
+
+  # shellcheck source=./asd.conf source-path=SCRIPTDIR
   source "$ASDCONF" || {
     rc="$?"
     ediag "${BLD}Error sourcing ${ASDCONF}; cannot continue.${NRM}"
@@ -110,7 +111,7 @@ if [[ -f "${DAEMON_FILE}.conf" ]]; then
   debug "\nRestoring old asd.conf configurations"
   unset WHATTOSYNC USE_OVERLAYFS USE_BACKUPS VOLATILE
   ASDCONF="${DAEMON_FILE}.conf"
-  # shellcheck source=./asd.conf
+  # shellcheck source=./asd.conf source-path=SCRIPTDIR
   source "$ASDCONF" || {
     rc="$?"
     ediag "${BLD}Error sourcing ${ASDCONF}; cannot continue.${NRM}"
