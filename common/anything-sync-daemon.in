@@ -155,6 +155,18 @@ VOLATILE="${VOLATILE%%+(/)}"
 
 debug "Volatile dir: ${VOLATILE}"
 
+looks_like_tmpfs_or_zram() {
+  df -T "${1?}" | grep -q '\( tmpfs \|^/dev/zram\)'
+}
+
+looks_like_tmpfs_or_zram_diag() {
+  looks_like_tmpfs_or_zram "${1?}" || {
+    local rc="$?"
+    diag "${1?} is not tmpfs/zram so running asd is pointless. Aborting."
+    return "$rc"
+  }
+}
+
 is_truthy() {
   local b="${1?}"
   case "${b,,}" in
@@ -168,9 +180,7 @@ is_truthy() {
 }
 
 # bail if $VOLATILE isn't tmpfs
-df -T "$VOLATILE" | grep -m 1 -q '\( tmpfs \|^/dev/zram\)' || {
-echo "$VOLATILE is not tmpfs/zram so running asd is pointless. Aborting." >&2
-exit 1; }
+looks_like_tmpfs_or_zram_diag "$VOLATILE"
 
 debug "Hardlink safety check: ${ENABLE_HARDLINK_SAFETY_CHECK:=1}"
 
