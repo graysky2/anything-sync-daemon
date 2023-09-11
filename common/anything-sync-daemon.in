@@ -144,7 +144,7 @@ WHATTOSYNC=("${WHATTOSYNC[@]%%+(/)}")
 VOLATILE="${VOLATILE%%+(/)}"
 
 # setting everything back
-$previous_extglob_setting
+$previous_extglob_setting || :
 unset previous_extglob_setting
 
 debug "Volatile dir: ${VOLATILE:=/tmp}"
