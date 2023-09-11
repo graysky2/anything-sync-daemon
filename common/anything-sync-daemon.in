@@ -209,19 +209,22 @@ debug "Crash recovery enabled: $CRRE"
 # ubuntu 15.04 has both overlay and overlayfs so prefer version 23
 if [[ $OLFS -eq 1 ]]; then
   # first test if either module is manually loaded manually or hardcoded
-  [[ $(grep -ciE "overlayfs$" /proc/filesystems) -eq 1 ]] && OLFSVER=22
-  [[ $(grep -ciE "overlay$" /proc/filesystems) -eq 1 ]] && OLFSVER=23
-  if [[ -z $OLFSVER ]]; then
-    # since mount should call modprobe on invocation, check to see if either
-    # module is in the tree using modinfo
-    modinfo overlayfs &>/dev/null && OLFSVER=22
-    modinfo overlay &>/dev/null && OLFSVER=23
-    if [[ -z $OLFSVER ]]; then
-      echo "overlayfs is not supported by your system, falling back to normal"
-      OLFS=0
-    fi
+  if grep -qiE "overlay$" /proc/filesystems 2>/dev/null; then
+    OLFSVER=23
+  elif grep -qiE "overlayfs$" /proc/filesystems 2>/dev/null; then
+    OLFSVER=22
+  # since mount should call modprobe on invocation, check to see if either
+  # module is in the tree using modinfo
+  elif modinfo overlay &>/dev/null; then
+    OLFSVER=23
+  elif modinfo overlayfs &>/dev/null; then
+    OLFSVER=22
+  else
+    diag "overlayfs is not supported by your system, falling back to normal."
+    OLFS=0
   fi
 fi
+
 debug "overlayfs enabled: $OLFS"
 debug "overlayfs version: $OLFSVER"
 
