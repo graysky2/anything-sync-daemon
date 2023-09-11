@@ -237,26 +237,25 @@ debug "overlayfs version: $OLFSVER"
 # first try os-release
 if [[ -f /etc/os-release ]]; then
   # shellcheck source=/dev/null
-  source /etc/os-release
-  if [[ -n "$PRETTY_NAME" ]]; then
-    distro="$PRETTY_NAME"
-  elif [[ -n "$NAME" ]]; then
-    distro="$NAME"
-  fi
-else
-  # if not os-release try issue
-  if [[ -n $(sed 's| \\.*$||' /etc/issue | head -n 1) ]]; then
-    distro="$(sed 's| \\.*$||' /etc/issue | head -n 1)"
-  else
-    # fuck it
-    distro=
-  fi
+  source /etc/os-release 2>/dev/null || :
+  distro="${PRETTY_NAME:-${NAME}}"
 fi
 
-header() {
-  [[ -z "$distro" ]] && echo -e "${BLD}Anything-sync-daemon v$VERS${NRM}" ||
-    echo -e "${BLD}Anything-sync-daemon v$VERS${NRM}${BLD} on $distro${NRM}"
-  echo
+# if not os-release try issue
+distro="${distro:-$(sed -n '/./ { s| \\.*$||; p; q }' /etc/issue 2>/dev/null)}" || :
+
+if [[ -z "$distro" ]]; then
+  header() {
+    ediag "${BLD}Anything-sync-daemon v${VERS}${NRM}"
+    diag
+  }
+else
+  header() {
+    ediag "${BLD}Anything-sync-daemon v${VERS}${NRM}${BLD} on ${distro}${NRM}"
+    diag
+  }
+fi
+
 }
 
 dep_check() {
