@@ -35,11 +35,23 @@ diag_error() {
 
 trap 'diag_error "$LINENO"' ERR
 
-debug "checking flock"
-  command -v flock >/dev/null 2>&1 || {
-  echo "I require flock but it's not installed. Aborting." >&2
-  exit 1; }
-debug "flock found"
+have_dep() {
+  command -v "${1?}" &>/dev/null
+}
+
+have_dep_diag() {
+  have_dep "${1?}" || {
+    local rc="$?"
+    diag "I require ${1?} but it's not installed. Aborting."
+    return "$rc"
+  }
+}
+
+if [[ "${FLOCKER:-}" != "$0" ]]; then
+  debug "checking flock"
+  have_dep_diag flock || exit
+  debug "flock found"
+fi
 
 BLD="\e[01m"
 RED="\e[01;31m"
@@ -231,28 +243,26 @@ header() {
 dep_check() {
   # Function is used to ensure all dependencies are installed
   debug "\n${BLU}Checking dependencies${NRM}"
-  debug "checking rsync"
-  command -v rsync >/dev/null 2>&1 || {
-  echo "I require rsync but it's not installed. Aborting." >&2
-  exit 1; }
-  debug "checking awk"
-  command -v awk >/dev/null 2>&1 || {
-  echo "I require awk but it's not installed. Aborting." >&2; exit 1; }
-  debug "checking pv"
-  command -v pv >/dev/null 2>&1 || {
-  echo "I require pv but it's not installed. Aborting." >&2; exit 1; }
-  debug "checking tar"
-  command -v tar >/dev/null 2>&1 || {
-  echo "I require tar but it's not installed. Aborting." >&2; exit 1; }
-  debug "checking zstd"
-  command -v zstd >/dev/null 2>&1 || {
-  echo "I require zstd but it's not installed. Aborting." >&2; exit 1; }
-  if [[ $OLFS -eq 1 ]]; then
-    [[ $OLFSVER -ge 22 ]] || {
-    echo -e " ${BLD}Your kernel requires either the ${BLU}overlay${NRM}${BLD} or ${BLU}overlayfs${NRM}${BLD} module to use${NRM}"
-    echo -e " ${BLD}to use asd's in overlay mode. Cannot find either in your kernel so compile it in and${NRM}"
-    echo -e " ${BLD}try again or remove the option from ${BLU}$ASDCONF${NRM}${BLD}. ${RED}Aborting!${NRM}" >&2; exit 1;}
+
+  local -a deps=(
+    rsync awk pv tar zstd
+  )
+
+  local dep
+  local rc=0
+  for dep in "${deps[@]}"; do
+    debug "checking ${dep}"
+    have_dep_diag "$dep" || rc="$?"
+  done
+
+  if [[ "${OLFS:-}" = 1 ]] && { [[ -z "$OLFSVER" ]] || (( OLFSVER < 22 )) ; }; then
+    ediag " ${BLD}Your kernel requires either the ${BLU}overlay${NRM}${BLD} or ${BLU}overlayfs${NRM}${BLD} module to use${NRM}"
+    ediag " ${BLD}to use asd's in overlay mode. Cannot find either in your kernel so compile it in and${NRM}"
+    ediag " ${BLD}try again or remove the option from ${BLU}${ASDCONF}${NRM}${BLD}. ${RED}Aborting!${NRM}"
+    rc=1
   fi
+
+  return "$rc"
 }
 
 config_check() {
