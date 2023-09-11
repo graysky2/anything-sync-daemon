@@ -119,7 +119,7 @@ if [[ -f "${DAEMON_FILE}.conf" ]]; then
   }
 fi
 
-debug "" # just for an additional enter
+debug # just for an additional enter
 
 # define default number of crash-recovery snapshots to save if the user did not
 # and check that it is an integer if user did define it
