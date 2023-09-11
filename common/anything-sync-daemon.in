@@ -26,7 +26,8 @@ else
   }
 fi
 
-set -e
+set -euo pipefail
+
 Error() {
   echo "Error occurred at $1"
   exit 1
