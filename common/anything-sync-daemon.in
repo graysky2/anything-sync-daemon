@@ -123,16 +123,9 @@ debug "" # just for an additional enter
 
 # define default number of crash-recovery snapshots to save if the user did not
 # and check that it is an integer if user did define it
-if [[ -z "$BACKUP_LIMIT" ]]; then
-  BACKUP_LIMIT=5
-else
-  if [[ "$BACKUP_LIMIT" =~ ^[0-9]+$ ]]; then
-    # correctly setup
-    /bin/true
-  else
-    echo -e " ${RED}ERROR:${NRM}${BLD} Bad value for BACKUP_LIMIT detected!${NRM}"
-    exit 1
-  fi
+if ! [[ "${BACKUP_LIMIT:=5}" =~ ^[[:digit:]]+$ ]]; then
+  ediag " ${RED}ERROR:${NRM}${BLD} Bad value for BACKUP_LIMIT detected!${NRM}"
+  exit 1
 fi
 debug "Backup limit: $BACKUP_LIMIT"
 
@@ -152,8 +145,7 @@ VOLATILE="${VOLATILE%%+(/)}"
 $previous_extglob_setting
 unset previous_extglob_setting
 
-[[ -z "$VOLATILE" ]] && VOLATILE=/tmp
-debug "Volatile dir: $VOLATILE"
+debug "Volatile dir: ${VOLATILE:=/tmp}"
 
 is_truthy() {
   local b="${1?}"
@@ -172,8 +164,7 @@ df -T "$VOLATILE" | grep -m 1 -q '\( tmpfs \|^/dev/zram\)' || {
 echo "$VOLATILE is not tmpfs/zram so running asd is pointless. Aborting." >&2
 exit 1; }
 
-[[ -z "$ENABLE_HARDLINK_SAFETY_CHECK" ]] && ENABLE_HARDLINK_SAFETY_CHECK=1
-debug "Hardlink safety check: $ENABLE_HARDLINK_SAFETY_CHECK"
+debug "Hardlink safety check: ${ENABLE_HARDLINK_SAFETY_CHECK:=1}"
 
 # simple function to determine user intent rather than using a null value
 if is_truthy "${USE_OVERLAYFS:-}"; then
@@ -183,8 +174,7 @@ else
 fi
 
 # since the default for this one is a yes, need to force a null value to yes
-[[ -z "${USE_BACKUPS,,}" ]] && USE_BACKUPS="yes"
-debug "Backups enabled: $USE_BACKUPS"
+debug "Backups enabled: ${USE_BACKUPS:=yes}"
 
 if is_truthy "$USE_BACKUPS"; then
   CRRE=1
