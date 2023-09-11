@@ -131,8 +131,8 @@ debug "Backup limit: $BACKUP_LIMIT"
 
 # saving current extended pattern matching setting
 # command returns non zero exit code if the option is unset hence
-# pipe with true
-previous_extglob_setting=$(shopt -p extglob || true)
+# pipe with `:`
+previous_extglob_setting="$(shopt -p extglob || :)"
 
 # ensuring pattern matching is enabled
 shopt -s extglob
