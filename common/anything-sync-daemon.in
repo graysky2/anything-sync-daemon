@@ -73,7 +73,10 @@ if [[ "$ASDCONF" != "/etc/asd.conf" ]]; then
 fi
 LOCKFILE="/run/$ASDNAME-lock"
 # shellcheck disable=SC2015
-[[ ${FLOCKER} != "$0" ]] && echo -e "${RED}Waiting for lock...${NRM}" && exec env FLOCKER="$0" flock --verbose -e "$LOCKFILE" "$0" "$*" ||
+if [[ "${FLOCKER:-}" != "$0" ]]; then
+  ediag "${RED}Waiting for lock...${NRM}"
+  FLOCKER="$0" exec flock -x "$LOCKFILE" "$BASH" "-$-" "$0" "$@"
+fi
 
 debug "${RED}ASDNAME:${NRM} $ASDNAME"
 debug "${BLU}Configuration file:${NRM} $ASDCONF"
