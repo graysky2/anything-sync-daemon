@@ -141,13 +141,19 @@ shopt -s extglob
 # explicitly declare the variable in case it was unset in `ASDCONF`.
 declare -a WHATTOSYNC
 WHATTOSYNC=("${WHATTOSYNC[@]%%+(/)}")
-VOLATILE="${VOLATILE%%+(/)}"
 
 # setting everything back
 $previous_extglob_setting || :
 unset previous_extglob_setting
 
-debug "Volatile dir: ${VOLATILE:=/tmp}"
+if [[ -z "${VOLATILE:-}" ]]; then
+  VOLATILE=/tmp
+fi
+
+# removing any trailing slash(es) from the volatile directory
+VOLATILE="${VOLATILE%%+(/)}"
+
+debug "Volatile dir: ${VOLATILE}"
 
 is_truthy() {
   local b="${1?}"
