@@ -53,6 +53,11 @@ if [[ "${FLOCKER:-}" != "$0" ]]; then
   debug "flock found"
 fi
 
+looks_like_systemd() {
+  systemctl --system list-unit-files asd.service &>/dev/null \
+    || [[ -f /usr/lib/systemd/user/asd.service ]]
+}
+
 BLD="\e[01m"
 RED="\e[01;31m"
 GRN="\e[01;32m"
@@ -576,7 +581,7 @@ do_unsync() {
 }
 
 parse() {
-  if [[ -f /usr/lib/systemd/system/asd.service ]]; then
+  if looks_like_systemd; then
     # running systemd
     asd_state=$(systemctl show -p ActiveState --value asd)
     resync_state=$(systemctl show -p ActiveState --value asd-resync.timer)
@@ -636,7 +641,7 @@ parse() {
         for backup in "${CRASHArr[@]}"; do
           psize=$(du -Dh --max-depth=0 "$backup" 2>/dev/null | awk '{ print $1 }')
           echo -en " ${BLD} dir path/size:"
-          echo -e "$(tput cr)$(tput cuf 20) ${BLU}$backup ${NRM}${BLD}($psize)${NRM}" 
+          echo -e "$(tput cr)$(tput cuf 20) ${BLU}$backup ${NRM}${BLD}($psize)${NRM}"
         done
       fi
       unset CRASHArr
@@ -701,7 +706,7 @@ case "$1" in
     echo -e " ${BLD} ${NRM}${RED}unsync${NRM}${BLD} Force a manual unsync. Must be run as root user and NOT recommended.${NRM}"
     echo
     echo -e " ${BLD}It is ${RED}HIGHLY DISCOURAGED${NRM}${BLD} to directly call $0 to sync or to unsync.${NRM}"
-    if [[ -f /usr/lib/systemd/system/asd.service ]]; then
+    if looks_like_systemd; then
       echo -e " ${BLD}Instead, use systemd to start/stop anything-sync-daemon.${NRM}"
       echo
       echo -e " ${BLD}systemctl ${NRM}${GRN}[option]${NRM}${BLD} asd asd-resync${NRM}"
