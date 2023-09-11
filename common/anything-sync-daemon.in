@@ -256,6 +256,24 @@ else
   }
 fi
 
+verbosely() {
+  if (( "$#" < 1 )); then
+    ediag "${RED}INTERNAL ERROR:${NRM} Usage: ${FUNCNAME[0]} <command> [<arg> ...]"
+    return 1
+  fi
+
+  debug "${ON_START:-"running command '$*'"}"
+
+  local rc=0
+  "$@" || {
+    rc="$?"
+    debug "${ON_ERROR:-"command '$*' exited with status '$rc'"}"
+    return "$rc"
+  }
+
+  debug "${ON_SUCCESS:-"command '$*' succeeded"}"
+
+  return 0
 }
 
 dep_check() {
