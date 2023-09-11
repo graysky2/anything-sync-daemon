@@ -28,11 +28,12 @@ fi
 
 set -euo pipefail
 
-Error() {
-  echo "Error occurred at $1"
-  exit 1
+# shellcheck disable=SC2317
+diag_error() {
+  diag "Error occurred at ${1:-unknown line}"
 }
-trap 'Error $LINENO' ERR
+
+trap 'diag_error "$LINENO"' ERR
 
 debug "checking flock"
   command -v flock >/dev/null 2>&1 || {
