@@ -53,6 +53,11 @@ if [[ "${FLOCKER:-}" != "$0" ]]; then
   debug "flock found"
 fi
 
+running_as_root() {
+  local euid="${EUID:-$(id -u)}" || return
+  (( euid == 0 ))
+}
+
 looks_like_systemd() {
   systemctl --system list-unit-files asd.service &>/dev/null \
     || [[ -f /usr/lib/systemd/user/asd.service ]]
