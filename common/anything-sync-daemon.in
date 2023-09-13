@@ -143,9 +143,12 @@ else
   NRM="\e[00m"
 fi
 
-VERS='@VERSION@'
+readonly BLD RED GRN NRM
 
-CRASH_RECOVERY_SUFFIX=crashrecovery
+readonly VERS='@VERSION@'
+
+readonly CRASH_RECOVERY_SUFFIX=crashrecovery
+
 ASDNAME=asd
 
 umask 027
@@ -171,7 +174,10 @@ else
   mkdir -p "$ASDRUNDIR"
 fi
 
-ASDCONF_SNAPSHOT="${DAEMON_FILE}.conf"
+readonly ASDCONFDIR ASDNAME ASDRUNDIR DAEMON_FILE LOCKFILE
+
+readonly ASDCONF_SOURCE="$ASDCONF"
+readonly ASDCONF_SNAPSHOT="${DAEMON_FILE}.conf"
 
 mkdir -p "$(dirname "$DAEMON_FILE")"
 
@@ -182,13 +188,13 @@ if [[ "${FLOCKER:-}" != "$0" ]]; then
 fi
 
 debug "${RED}ASDNAME:${NRM} ${ASDNAME}"
-debug "${BLU}Configuration file:${NRM} ${ASDCONF}"
+debug "${BLU}Configuration file:${NRM} ${ASDCONF_SOURCE}"
 debug "${GRN}Daemon file:${NRM} ${DAEMON_FILE}"
 debug "${RED}Lockfile:${NRM} ${LOCKFILE}\n"
 
 # Setup check /etc/asd.conf
-debug "Checking for existence of $ASDCONF"
-if [[ -f "$ASDCONF" ]]; then
+debug "Checking for existence of ${ASDCONF_SOURCE}"
+if [[ -f "$ASDCONF_SOURCE" ]]; then
   debug "Checking if asd is already running"
 
   if [[ -f "$DAEMON_FILE" ]]; then
@@ -198,13 +204,13 @@ if [[ -f "$ASDCONF" ]]; then
   fi
 
   # shellcheck source=./asd.conf source-path=SCRIPTDIR
-  source "$ASDCONF" || {
+  source "$ASDCONF_SOURCE" || {
     rc="$?"
-    ediag "${BLD}Error sourcing ${ASDCONF}; cannot continue.${NRM}"
+    ediag "${BLD}Error sourcing ${ASDCONF_SOURCE}; cannot continue.${NRM}"
     exit "$rc"
   }
 else
-  ediag " ${BLD}Cannot find ${ASDCONF} so bailing.${NRM}"
+  ediag " ${BLD}Cannot find ${ASDCONF_SOURCE} so bailing.${NRM}"
   ediag " ${BLD}Reinstall package to use anything-sync-daemon.${NRM}"
   exit 1
 fi
@@ -213,14 +219,19 @@ fi
 if [[ -f "$ASDCONF_SNAPSHOT" ]]; then
   debug "\nRestoring old asd.conf configurations"
   unset WHATTOSYNC USE_OVERLAYFS USE_BACKUPS VOLATILE
-  ASDCONF="$ASDCONF_SNAPSHOT"
   # shellcheck source=./asd.conf source-path=SCRIPTDIR
-  source "$ASDCONF" || {
+  source "$ASDCONF_SNAPSHOT" || {
     rc="$?"
     ediag "${BLD}Error sourcing ${ASDCONF}; cannot continue.${NRM}"
     exit "$rc"
   }
+  ASDCONF="$ASDCONF_SNAPSHOT"
+else
+  # asd.conf may have altered the value of `ASDCONF`
+  ASDCONF="$ASDCONF_SOURCE"
 fi
+
+readonly ASDCONF
 
 debug # just for an additional enter
 
