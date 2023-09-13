@@ -2,3 +2,6 @@
 result
 result-*
 repl-result-*
+
+# From using `nixos-test-driver`
+.nixos-test-history
