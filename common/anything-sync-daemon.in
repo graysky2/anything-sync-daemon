@@ -89,11 +89,11 @@ if running_as_root; then
   }
 
   if looks_like_systemd; then
-    ASDCONFDIR="${CONFIGURATION_DIRECTORY:-/etc/asd}"
-    ASDRUNDIR="${RUNTIME_DIRECTORY:-/run/asd}"
+    ASDCONFDIR="${ASDCONFDIR:-"${CONFIGURATION_DIRECTORY:-/etc/asd}"}"
+    ASDRUNDIR="${ASDRUNDIR:-"${RUNTIME_DIRECTORY:-/run/asd}"}"
   else
-    ASDCONFDIR=/etc/asd
-    ASDRUNDIR=/run/asd
+    ASDCONFDIR="${ASDCONFDIR:-/etc/asd}"
+    ASDRUNDIR="${ASDRUNDIR:-/run/asd}"
   fi
 
   if [[ -f /etc/asd.conf ]]; then
@@ -111,11 +111,11 @@ else
   }
 
   if looks_like_systemd; then
-    ASDCONFDIR="${CONFIGURATION_DIRECTORY:-${XDG_CONFIG_HOME:-${HOME?}/.config}/asd}"
-    ASDRUNDIR="${RUNTIME_DIRECTORY:-${XDG_RUNTIME_DIR:-/run/user/${EUID:-$(id -u)}}/asd}"
+    ASDCONFDIR="${ASDCONFDIR:-"${CONFIGURATION_DIRECTORY:-${XDG_CONFIG_HOME:-${HOME?}/.config}/asd}"}"
+    ASDRUNDIR="${ASDRUNDIR:-"${RUNTIME_DIRECTORY:-${XDG_RUNTIME_DIR:-/run/user/${EUID:-$(id -u)}}/asd}"}"
   else
-    ASDCONFDIR="${XDG_CONFIG_HOME:-${HOME?}/.config}/asd"
-    ASDRUNDIR="${XDG_RUNTIME_DIR:-/run/user/${EUID:-$(id -u)}}/asd"
+    ASDCONFDIR="${ASDCONFDIR:-"${XDG_CONFIG_HOME:-${HOME?}/.config}/asd"}"
+    ASDRUNDIR="${ASDRUNDIR:-"${XDG_RUNTIME_DIR:-/run/user/${EUID:-$(id -u)}}/asd"}"
   fi
 fi
 
