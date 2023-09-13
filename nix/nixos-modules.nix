@@ -137,6 +137,7 @@
 
                 environment = {
                   ASDCONF = c.configFile;
+                  ASDNOV1PATHS = "yes";
                   DEBUG =
                     if c.debug
                     then "1"
