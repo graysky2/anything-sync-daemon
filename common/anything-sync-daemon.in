@@ -79,6 +79,22 @@ looks_like_systemd_user() {
     || [[ -f /usr/lib/systemd/user/asd.service ]]
 }
 
+is_truthy() {
+  local b="${1?}"
+  case "${b,,}" in
+    y|yes|true|t|on|1|enabled|enable|use)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+use_v1_paths() {
+  running_as_root && ! is_truthy "${ASDNOV1PATHS:-}"
+}
+
 if running_as_root; then
   looks_like_systemd() {
     looks_like_systemd_system
@@ -94,12 +110,6 @@ if running_as_root; then
   else
     ASDCONFDIR="${ASDCONFDIR:-/etc/asd}"
     ASDRUNDIR="${ASDRUNDIR:-/run/asd}"
-  fi
-
-  if [[ -f /etc/asd.conf ]]; then
-    diag -n "Warning: using legacy configuration file /etc/asd.conf, "
-    diag "please consider migrating it to /etc/asd/asd.conf."
-    ASDCONFDIR=/etc
   fi
 else
   looks_like_systemd() {
@@ -135,26 +145,35 @@ fi
 
 VERS='@VERSION@'
 
-ASDCONF="${ASDCONF:-${ASDCONFDIR}/asd.conf}"
-DAEMON_FILE="${DAEMON_FILE:-${ASDRUNDIR}/asd.run}"
-ASDCONF_SNAPSHOT="${DAEMON_FILE}.conf"
 CRASH_RECOVERY_SUFFIX=crashrecovery
 ASDNAME=asd
-LOCKFILE="${ASDRUNDIR}/asd.lock"
 
 umask 027
 
-mkdir -p "$(dirname "$DAEMON_FILE")"
+if use_v1_paths; then
+  ASDCONF="${ASDCONF:-/etc/asd.conf}"
+  DAEMON_FILE="${DAEMON_FILE:-/run/asd}"
 
-if [[ "$ASDRUNDIR" = /run/asd ]] && [[ -e "$ASDRUNDIR" ]] && ! [[ -d "$ASDRUNDIR" ]]; then
-  diag -n "Warning: using legacy daemon file ${ASDRUNDIR}; "
-  diag "automatically migrating to new daemon file ${DAEMON_FILE}."
+  if [[ "$ASDCONF" != /etc/asd.conf ]]; then
+    suffix="$(realpath "$ASDCONF" | sha256sum | cut -b -16)"
+    ASDNAME="${ASDNAME}-${suffix}"
+    if [[ "$DAEMON_FILE" == /run/asd ]]; then
+      DAEMON_FILE="/run/${ASDNAME}"
+    fi
+  fi
 
-  mv -f "$ASDRUNDIR" "$DAEMON_FILE"
-  mv -f "${ASDRUNDIR}.conf" "$ASDCONF_SNAPSHOT" 2>/dev/null
+  LOCKFILE="/run/${ASDNAME}-lock"
+else
+  ASDCONF="${ASDCONF:-${ASDCONFDIR}/asd.conf}"
+  DAEMON_FILE="${DAEMON_FILE:-${ASDRUNDIR}/asd.run}"
+  LOCKFILE="${ASDRUNDIR}/asd.lock"
+
+  mkdir -p "$ASDRUNDIR"
 fi
 
-mkdir -p "$ASDRUNDIR"
+ASDCONF_SNAPSHOT="${DAEMON_FILE}.conf"
+
+mkdir -p "$(dirname "$DAEMON_FILE")"
 
 # shellcheck disable=SC2015
 if [[ "${FLOCKER:-}" != "$0" ]]; then
@@ -227,11 +246,10 @@ declare -a WHATTOSYNC
 WHATTOSYNC=("${WHATTOSYNC[@]%%+(/)}")
 
 if [[ -z "${VOLATILE:-}" ]]; then
-  if looks_like_systemd || ! running_as_root; then
-    VOLATILE="$ASDRUNDIR"
-  else
-    # Backward compatibility
+  if use_v1_paths; then
     VOLATILE=/tmp
+  else
+    VOLATILE="$ASDRUNDIR"
   fi
 fi
 
@@ -254,18 +272,6 @@ looks_like_tmpfs_or_zram_diag() {
     diag "${1?} is not tmpfs/zram so running asd is pointless. Aborting."
     return "$rc"
   }
-}
-
-is_truthy() {
-  local b="${1?}"
-  case "${b,,}" in
-    y|yes|true|t|on|1|enabled|enable|use)
-      return 0
-      ;;
-    *)
-      return 1
-      ;;
-  esac
 }
 
 # bail if $VOLATILE isn't tmpfs
