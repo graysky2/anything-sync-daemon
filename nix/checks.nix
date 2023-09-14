@@ -10,7 +10,11 @@
       anything-sync-daemon = pkgs.testers.nixosTest {
         name = "anything-sync-daemon";
 
-        nodes.asd = {lib, ...}: let
+        nodes.asd = {
+          config,
+          lib,
+          ...
+        }: let
           common = {
             enable = true;
             resyncTimer = "3s";
@@ -22,6 +26,26 @@
             self.nixosModules.anything-sync-daemon
           ];
 
+          security.sudo = {
+            enable = true;
+            extraRules = [
+              {
+                users = [config.users.users.asduser.name];
+                commands = [
+                  {
+                    command = "${config.services.asd.package}/bin/asd-mount-helper";
+                    options = ["NOPASSWD" "SETENV"];
+                  }
+                ];
+              }
+            ];
+          };
+
+          # `false` is the default; set it here anyway to document that we want
+          # user processes (e.g. `asd-resync`) to persist after the user
+          # session closes.
+          services.logind.killUserProcesses = false;
+
           services.asd.system = lib.mkMerge [
             common
 
@@ -31,17 +55,32 @@
               ];
             }
           ];
+
+          services.asd.user = lib.mkMerge [
+            common
+
+            {
+              extraConfig = ''
+                WHATTOSYNC=(
+                  "''${HOME}/what-to-sync"
+                )
+              '';
+            }
+          ];
+
+          users.users.asduser = {
+            createHome = true;
+            home = "/home/asduser";
+            isNormalUser = true;
+          };
         };
 
-        testScript = {nodes, ...}: ''
+        testScript = {nodes, ...}: let
+          user = nodes.asd.users.users.asduser.name;
+        in ''
           start_all()
 
-          asd.succeed('mkdir -p /var/lib/what-to-sync 1>&2')
-          asd.succeed("""
-            for f in foo bar baz; do
-              touch "/var/lib/what-to-sync/''${f}"
-            done
-          """)
+          asd.succeed('${./check.sh} setup foo bar baz')
 
           # In case `asd.service` bailed out before we could set up the
           # `WHATTOSYNC` directories.
@@ -52,44 +91,48 @@
             asd.start_job('asd.service')
             asd.wait_for_unit('asd.service')
 
-          with subtest('ensuring target directory exists'):
+          asd.wait_for_unit('multi-user.target')
+
+          # Ensure user session doesn't end when user logs out
+          asd.succeed("loginctl enable-linger ${user}")
+
+          asd.succeed('sudo -u ${user} ${./check.sh} setup foo bar baz')
+
+          asd.start_job('asd.service', user='${user}')
+          asd.wait_for_unit('asd.service', user='${user}')
+
+          with subtest('ensuring target directories exists'):
+            asd.wait_for_file('~${user}/what-to-sync')
             asd.wait_for_file('/var/lib/what-to-sync')
 
           with subtest('checking that files exist in backup and volatile storage'):
-            for file in ['foo', 'bar', 'baz']:
-              asd.wait_for_file(f'/run/asd/asd-root/var/lib/what-to-sync/{file}')
-              asd.wait_for_file(f'/var/lib/.what-to-sync-backup_asd/{file}')
+            asd.wait_until_succeeds('${./check.sh} before foo bar baz')
+            asd.wait_until_succeeds('sudo -u ${user} ${./check.sh} before foo bar baz')
 
           with subtest('checking that resync propagates newly-created files'):
-            asd.succeed("""
-              for f in quux corge grault; do
-                touch "/var/lib/what-to-sync/''${f}";
-              done
-            """)
+            asd.succeed('${./check.sh} setup quux corge grault')
+            asd.succeed('sudo -u ${user} ${./check.sh} setup quux corge grault')
 
-            for file in ['quux', 'corge', 'grault']:
-              asd.wait_for_file(f'/run/asd/asd-root/var/lib/what-to-sync/{file}')
-              asd.wait_for_file(f'/var/lib/.what-to-sync-backup_asd/{file}')
+            asd.wait_until_succeeds('${./check.sh} before quux corge grault')
+            asd.wait_until_succeeds('sudo -u ${user} ${./check.sh} before quux corge grault')
 
           with subtest('checking that files exist on durable storage after unit stop'):
             asd.stop_job('asd.service')
+            asd.stop_job('asd.service', user='${user}')
 
-            for file in ['foo', 'bar', 'baz', 'quux', 'corge', 'grault']:
-              asd.wait_for_file(f'/var/lib/what-to-sync/{file}')
-
-            asd.succeed("""
-              for f in foo bar baz quux corge grault; do
-                ! [ -f "/run/asd/asd-root/var/lib/what-to-sync/''${f}" ] || exit
-              done 1>&2
-            """)
+            asd.wait_until_succeeds('${./check.sh} after foo bar baz quux corge grault')
+            asd.wait_until_succeeds('sudo -u ${user} ${./check.sh} after foo bar baz quux corge grault')
 
           with subtest('checking that files exist in backup and volatile storage after restart'):
             asd.start_job('asd.service')
             asd.wait_for_unit('asd.service')
 
-            for file in ['foo', 'bar', 'baz', 'quux', 'corge', 'grault']:
-              asd.wait_for_file(f'/run/asd/asd-root/var/lib/what-to-sync/{file}')
-              asd.wait_for_file(f'/var/lib/.what-to-sync-backup_asd/{file}')
+            asd.wait_for_unit('multi-user.target')
+            asd.start_job('asd.service', user='${user}')
+            asd.wait_for_unit('asd.service', user='${user}')
+
+            asd.wait_until_succeeds('${./check.sh} before foo bar baz quux corge grault')
+            asd.wait_until_succeeds('sudo -u ${user} ${./check.sh} before foo bar baz quux corge grault')
 
           with subtest('checking that crash recovery file is generated after hard crash'):
             for _ in range(${toString nodes.asd.services.asd.system.backupLimit} + 2):
@@ -103,20 +146,8 @@
 
               asd.wait_for_unit('asd.service')
 
-            asd.succeed("""
-              i=0
-              for cr in /var/lib/.what-to-sync-backup_asd-crashrecovery-*.tar.zstd; do
-                if [[ -f "$cr" ]]; then
-                  i="$(( i + 1 ))"
-                fi
-              done
-
-              if [ "$i" -eq ${lib.escapeShellArg (toString nodes.asd.services.asd.system.backupLimit)} ]; then
-                exit 0
-              else
-                exit 1
-              fi
-            """)
+            asd.wait_until_succeeds('env BACKUP_LIMIT=${toString nodes.asd.services.asd.system.backupLimit} ${./check.sh} crash')
+            asd.wait_until_succeeds('sudo -u ${user} env BACKUP_LIMIT=${toString nodes.asd.services.asd.system.backupLimit} ${./check.sh} crash')
         '';
       };
     };
