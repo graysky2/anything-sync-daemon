@@ -26,6 +26,26 @@ else
   }
 fi
 
+verbosely() {
+  if (( "$#" < 1 )); then
+    ediag "${RED}INTERNAL ERROR:${NRM} Usage: ${FUNCNAME[0]} <command> [<arg> ...]"
+    return 1
+  fi
+
+  debug "${ON_START:-"running command '$*'"}"
+
+  local rc=0
+  "$@" || {
+    rc="$?"
+    debug "${ON_ERROR:-"command '$*' exited with status '$rc'"}"
+    return "$rc"
+  }
+
+  debug "${ON_SUCCESS:-"command '$*' succeeded"}"
+
+  return 0
+}
+
 set -euo pipefail
 
 # shellcheck disable=SC2317
@@ -91,6 +111,27 @@ is_truthy() {
   esac
 }
 
+serialize_conf_vars() {
+  declare -p \
+    BACKUP_LIMIT  \
+    DEBUG \
+    ENABLE_HARDLINK_SAFETY_CHECK \
+    USE_BACKUPS \
+    USE_OVERLAYFS \
+    VOLATILE \
+    WHATTOSYNC 2>/dev/null || :
+}
+
+serialize_conf_vars_with_timeout() {
+  export -f serialize_conf_vars
+
+  # shellcheck disable=SC2016
+  timeout "${ASDCONFTIMEOUT:-10}" "$BASH" "-$-" -c '
+    source "${1?}" || exit
+    serialize_conf_vars
+  ' "$0" "${1?}"
+}
+
 use_v1_paths() {
   running_as_root && ! is_truthy "${ASDNOV1PATHS:-}"
 }
@@ -148,6 +189,7 @@ readonly BLD RED GRN NRM
 readonly VERS='@VERSION@'
 
 readonly CRASH_RECOVERY_SUFFIX=crashrecovery
+readonly ASDCONFTIMEOUT="${ASDCONFTIMEOUT:-10}"
 
 ASDNAME=asd
 
@@ -202,13 +244,6 @@ if [[ -f "$ASDCONF_SOURCE" ]]; then
   else
     debug "Daemon file not found; asd is not running"
   fi
-
-  # shellcheck source=./asd.conf source-path=SCRIPTDIR
-  source "$ASDCONF_SOURCE" || {
-    rc="$?"
-    ediag "${BLD}Error sourcing ${ASDCONF_SOURCE}; cannot continue.${NRM}"
-    exit "$rc"
-  }
 else
   ediag " ${BLD}Cannot find ${ASDCONF_SOURCE} so bailing.${NRM}"
   ediag " ${BLD}Reinstall package to use anything-sync-daemon.${NRM}"
@@ -218,20 +253,36 @@ fi
 # if asd is active, source the snapshot of /etc/asd.conf preferentially
 if [[ -f "$ASDCONF_SNAPSHOT" ]]; then
   debug "\nRestoring old asd.conf configurations"
-  unset WHATTOSYNC USE_OVERLAYFS USE_BACKUPS VOLATILE
-  # shellcheck source=./asd.conf source-path=SCRIPTDIR
-  source "$ASDCONF_SNAPSHOT" || {
-    rc="$?"
-    ediag "${BLD}Error sourcing ${ASDCONF}; cannot continue.${NRM}"
-    exit "$rc"
-  }
-  ASDCONF="$ASDCONF_SNAPSHOT"
 else
-  # asd.conf may have altered the value of `ASDCONF`
-  ASDCONF="$ASDCONF_SOURCE"
+  # make a snapshot of the current configuration on the tmpfs while asd is
+  # running to keep any edits made to the live `ASDCONF` from potentially
+  # orphaning the tmpfs copies thus preserving the data
+  mkdir -p "$(dirname "$ASDCONF_SNAPSHOT")"
+  ON_START="creating configuration snapshot at ${ASDCONF_SNAPSHOT}" \
+    verbosely serialize_conf_vars_with_timeout "$ASDCONF_SOURCE" > "$ASDCONF_SNAPSHOT" || {
+      rc="$?"
+      ediag -n "${BLD}Error creating configuration snapshot ${ASDCONF_SNAPSHOT} from configuration file ${ASDCONF_SOURCE}"
+      case "$rc" in
+        # Probably timed out.  124 is coreutils, 143 is busybox.
+        124|143)
+          diag -n " (sourcing ${ASDCONF_SNAPSHOT} appears to have timed out)"
+          ;;
+      esac
+      ediag "; cannot continue.${NRM}"
+      rm -f "$ASDCONF_SNAPSHOT"
+      exit "$rc"
+    }
 fi
 
-readonly ASDCONF
+readonly ASDCONF="$ASDCONF_SNAPSHOT"
+
+# shellcheck source=./asd.conf source-path=SCRIPTDIR
+source "$ASDCONF" || {
+  rc="$?"
+  ediag "${BLD}Error sourcing ${ASDCONF}; cannot continue.${NRM}"
+  rm -f "$ASDCONF_SNAPSHOT"
+  exit "$rc"
+}
 
 debug # just for an additional enter
 
@@ -377,26 +428,6 @@ else
     asd-mount-helper "$@"
   }
 fi
-
-verbosely() {
-  if (( "$#" < 1 )); then
-    ediag "${RED}INTERNAL ERROR:${NRM} Usage: ${FUNCNAME[0]} <command> [<arg> ...]"
-    return 1
-  fi
-
-  debug "${ON_START:-"running command '$*'"}"
-
-  local rc=0
-  "$@" || {
-    rc="$?"
-    debug "${ON_ERROR:-"command '$*' exited with status '$rc'"}"
-    return "$rc"
-  }
-
-  debug "${ON_SUCCESS:-"command '$*' succeeded"}"
-
-  return 0
-}
 
 # Call a provided command for each entry in `WHATTOSYNC`, setting certain
 # variables for use within the command.
@@ -549,6 +580,9 @@ config_check() {
 
   if (( rc == 0 )); then
     debug "Configs seem to be fine"
+  else
+    debug "Removing ${ASDCONF_SNAPSHOT}"
+    rm -f "$ASDCONF_SNAPSHOT"
   fi
 
   return "$rc"
@@ -661,15 +695,6 @@ enforce() {
 
 do_sync() {
   debug "\n${GRN}Syncing files${NRM}"
-
-  # make a snapshot of the current configuration on the tmpfs while asd is
-  # running to keep any edits made to the live `ASDCONF` from potentially
-  # orphaning the tmpfs copies thus preserving the data
-  if ! [[  -f "$ASDCONF_SNAPSHOT" ]]; then
-    mkdir -p "$(dirname "$ASDCONF_SNAPSHOT")"
-    ON_START="creating configuration snapshot at ${ASDCONF_SNAPSHOT}" \
-      verbosely declare -p BACKUP_LIMIT DEBUG ENABLE_HARDLINK_SAFETY_CHECK USE_BACKUPS USE_OVERLAYFS VOLATILE WHATTOSYNC > "$ASDCONF_SNAPSHOT" || return
-  fi
 
   # sync to tmpfs and back again
   _do_sync() {
