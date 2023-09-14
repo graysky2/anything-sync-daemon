@@ -43,7 +43,14 @@
             done
           """)
 
-          asd.wait_for_unit('asd.service')
+          # In case `asd.service` bailed out before we could set up the
+          # `WHATTOSYNC` directories.
+          try:
+            asd.wait_for_unit('asd.service')
+          except:
+            asd.stop_job('asd.service')
+            asd.start_job('asd.service')
+            asd.wait_for_unit('asd.service')
 
           with subtest('ensuring target directory exists'):
             asd.wait_for_file('/var/lib/what-to-sync')
