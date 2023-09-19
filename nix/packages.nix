@@ -34,7 +34,7 @@
           pname = "anything-sync-daemon";
 
           inherit buildInputs;
-          nativeBuildInputs = with pkgs; [makeWrapper];
+          nativeBuildInputs = with pkgs; [makeWrapper pandoc];
 
           makeFlags = ["DESTDIR=$(out)" "PREFIX=/"];
 

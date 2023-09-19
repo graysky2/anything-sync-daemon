@@ -15,6 +15,7 @@ BSHDIR = $(PREFIX)/share/bash-completion/completions
 # set to anything except 0 to enable manpage compression
 COMPRESS_MAN = 1
 
+PANDOC = pandoc
 RM = rm
 SED = sed
 INSTALL = install -p
@@ -28,6 +29,9 @@ Q = @
 common/$(PN): Makefile common/$(PN).in
 	$(Q)echo -e '\033[1;32mSetting version\033[0m'
 	$(Q)$(SED) 's/@VERSION@/'$(VERSION)'/' common/$(PN).in > common/$(PN)
+
+doc/asd.1: USAGE.md
+	$(PANDOC) --standalone --from markdown+definition_lists+pandoc_title_block --to man -o $@ $<
 
 help: install
 
@@ -53,7 +57,7 @@ install-bin: stop-asd disable-systemd common/$(PN)
 	$(INSTALL_DIR) "$(DESTDIR)$(BSHDIR)"
 	$(INSTALL_DATA) common/bash-completion "$(DESTDIR)/$(BSHDIR)/asd"
 
-install-man:
+install-man: doc/asd.1
 	$(Q)echo -e '\033[1;32mInstalling manpage...\033[0m'
 	$(INSTALL_DIR) "$(DESTDIR)$(MANDIR)"
 	$(INSTALL_DATA) doc/asd.1 "$(DESTDIR)$(MANDIR)/asd.1"
