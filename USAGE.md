@@ -1,58 +1,85 @@
 % anything-sync-daemon(1)
 
+[OverlayFS]: https://en.wikipedia.org/wiki/OverlayFS
+[`rsync`]: https://github.com/WayneD/rsync
+
 # NAME
 
-**anything-sync-daemon** - Symlinks and syncs user specified dirs to RAM thus
+`anything-sync-daemon` - Symlinks and syncs user specified dirs to RAM thus
 reducing HDD/SDD calls and speeding-up the system.
 
 # DESCRIPTION
 
-Anything-sync-daemon (asd) is a tiny pseudo-daemon designed to manage user
-specified directories referred to as sync targets from here on out, in tmpfs
-and to periodically sync them back to the physical disc (HDD/SSD). This is
-accomplished via a bind mounting step and an innovative use of rsync to
-maintain synchronization between a tmpfs copy and media-bound backups.
-Additionally, asd features several crash-recovery features.
+`anything-sync-daemon` (`asd`) is a tiny pseudo-daemon designed to manage
+user-specified directories (referred to as "sync targets" from here on out) in
+tmpfs and to periodically sync them back to the physical disc (HDD/SSD).  This
+is accomplished via a bind-mounting step and an innovative use of [`rsync`][]
+to maintain synchronization between a tmpfs copy and media-bound backups.
+Additionally, `asd` features several crash-recovery features.
 
-Design goals of asd:
+Design goals of `asd`:
 
 - Completely transparent user experience.
 - Reduced wear to physical discs (particularly SSDs).
 - Speed.
 
-Since the sync targets is relocated into tmpfs (RAM disk), the corresponding
-onslaught of I/O associated with system usage of them is also redirected from
-the physical disc to RAM, thus reducing wear to the physical disc and also
-improving speed and responsiveness.
+Since sync targets are relocated into tmpfs (RAM disk), the corresponding
+onslaught of I/O associated with their use by the system is redirected from the
+physical disc to RAM, reducing wear to the physical disc and improving speed
+and responsiveness.
 
 # SETUP
 
-`/etc/asd.conf` contains all user managed settings. Optionally another file can
-be used by setting the `ASDCONF` environment variable.
+`/etc/asd.conf` contains all user-managed settings.  The configuration file
+location can be overridden by specifying a pathname in the `ASDCONF`
+environment variable.  For instance, to load `asd` settings from
+`/here/for/some/reason/lives/asd.conf`:
 
-**NOTE**: edits made to `/etc/asd.conf` while `asd` is running will be applied
-only after `asd` has been restarted from the init service.
+```shell-session
+$ ASDCONF=/here/for/some/reason/lives/asd.conf asd <subcommand>
+```
 
-- At a minimum, define the sync targets to be managed by asd in the
-  `WHATTOSYNC` array. Syntax below.
-- Optionally uncomment and define the location of your distro's tmpfs* in the
-  `VOLATILE` variable.
-- Optionally enable the use of overlayfs to improve sync speed even further and
-  use a smaller memory footprint. Do this in the `USE_OVERLAYFS` variable. Note
-  that this option requires your kernel to be configured to use either the
-  'overlay' or 'overlayfs' module. See the FAQ below for additional details on
-  this feature.
-- Optionally disable the use of crash-recovery snapshots. Do this in the
-  `USE_BACKUPS` variable.
-- Optionally define the number of crash-recovery snapshots to keep. Do this in
-  the `BACKUP_LIMIT` variable.
+**Note** that edits made to `/etc/asd.conf` while `asd` is running will be
+applied only after `asd` has been restarted.
 
-**NOTE** that the default value of `/tmp` should work just fine for the
-`VOLATILE` setting. If using bleachbit, do NOT invoke it with the `--clean
+In the `asd` configuration file, you may define the following variables:
+
+`WHATTOSYNC`
+
+: A list (more specifically, a Bash array) defining the sync targets for `asd`
+  to manage.  This variable is **mandatory**.  If you do not define
+  `WHATTOSYNC`, or if you set it to the empty list, `asd` will complain and
+  bail out.
+
+`VOLATILE`
+
+: A path that lives on a tmpfs or zram mount.  This is where `asd` will store
+  the data eventually synchronized back to the physical disk.  By default,
+  `asd` sets `VOLATILE=/tmp`.  **Note** that it is a fatal error to set
+  `VOLATILE` to a path that does not live on a tmpfs or zram mount.
+
+`USE_OVERLAYFS`
+
+: A boolean variable controlling whether to use OverlayFS to improve sync speed
+  even further and use a smaller memory footprint.  **Note** that this option
+  requires your kernel to be configured to use either the `overlay` or
+  `overlayfs` module.  See [the FAQ](#q1-what-is-overlayfs-mode) below for
+  additional details on this feature.
+
+`USE_BACKUPS`
+
+: A boolean variable controlling whether to create crash-recovery snapshots.
+
+`BACKUP_LIMIT`
+
+: An unsigned integer defining the number of crash-recovery snapshots to keep.
+
+**Note** that the default value of `/tmp` should work just fine for the
+`VOLATILE` setting.  If using bleachbit, do NOT invoke it with the `--clean
 system.tmp` switch or you will remove a key dot file (`.foo`) from `/tmp` that
-asd needs to keep track of sync status. Also note that using a value of
+`asd` needs to keep track of sync status.  Also note that using a value of
 `/dev/shm` can cause problems with systemd's `NAMESPACE` spawning only when
-users enable the overlayfs option.
+users enable the OverlayFS option.
 
 Example:
 
@@ -74,9 +101,10 @@ WHATTOSYNC=(
 
 ## PREVIEW MODE
 
-The preview option can be called to show users exactly what asd will do/is
-doing based on the entries in /etc/asd.conf as well printout useful information
-such as dir size, paths, and if any recovery snapshots have been created.
+The preview option can be called to show users exactly what `asd` will do/is
+doing based on the entries in the `asd` configuration file as well as print
+useful information such as directory size, paths, and data about any recovery
+snapshots that have been created.
 
 ```shell-session
 $ asd p
@@ -85,7 +113,7 @@ Anything-sync-daemon on Arch Linux.
 
 Systemd service is currently active.
 Systemd resync service is currently active.
-Overlayfs v23 is currently active.
+OverlayFS v23 is currently active.
 
 Asd will manage the following per /run/asd.conf settings:
 
@@ -130,10 +158,10 @@ Deleting 2 crashrecovery dirs for sync target /srv/http/serve
 ## START AND STOP ASD FOR SYSTEMD USERS
 
 Both a systemd service file and timer are provided, and should be used to start
-or stop asd.
+or stop `asd`.
 
-The role of the timer is update the tmpfs copies back to the disk. This occurs
-once per hour by default. The timer is started automatically with
+The role of the timer is update the tmpfs copies back to the disk.  This occurs
+once per hour by default.  The timer is started automatically with
 `asd.service`.
 
 ```shell-session
@@ -150,12 +178,12 @@ Available options:
 ## START AND STOP ASD FOR USERS OF OTHER INIT SYSTEMS
 
 For distros not using systemd, another init script should be used to manage the
-daemon. Examples are provided and are known to work with Upstart.
+daemon.  Examples are provided and are known to work with Upstart.
 
 Note that for these init systems, the supplied cron script (installed to
 `/etc/cron.hourly`) will run the resync option to keep the tmpfs copies
-sync'ed.  Of course, the target system must have cron installed and active for
-this to happen.
+synchronized.  Of course, the target system must have cron installed and active
+for this to happen.
 
 # SUPPORTED DISTROS
 
@@ -166,95 +194,113 @@ reason to think that `asd` will not run on another distro:
 
 # FAQ
 
-Q1: What is overlayfs mode?
+## Q1: What is "OverlayFS mode"?
 
-A1: Overlayfs is a simple union file-system mainlined in the Linux kernel
-version 3.18.0. Starting with asd version 5.54, overlayfs can be used to reduce
-the memory footprint of asd's tmpfs space and to speed up sync and unsync
-operations. The magic is in how the overlay mount only writes out data that has
-changed rather than the entire sync target. See Example 1 below. The same
-recovery features asd uses in its default mode are also active when running in
-overlayfs mode. Overlayfs mode is enabled by uncommenting the USE_OVERLAYFS= in
-/etc/asd.conf followed by a restart of the daemon.
+## A1:
 
-There are several versions of overlayfs available to the Linux kernel in
-production in various distros. Versions 22 and lower have a module called
-'overlayfs' while newer versions (23 and higher) have a module called 'overlay'
--- note the lack of the 'fs' in the newer version. Asd will automatically
-detect the overlayfs available to your kernel if it is configured to use one of
-them.
+[OverlayFS][] is a simple union filesystem mainlined in the Linux kernel
+version 3.18.0.  Starting with `asd` version 5.54, OverlayFS can be used to
+reduce the memory footprint of `asd`'s tmpfs space and to speed up sync and
+unsync operations.  The magic is in how the overlay mount only writes out data
+that has changed rather than writing out the entire sync target.  The same
+recovery features `asd` uses in its default mode are also active when running
+in OverlayFS mode.  OverlayFS mode is enabled by setting the `USE_OVERLAYFS`
+variable to a truthy value (e.g. `USE_OVERLAYFS=1`) in the `asd` configuration
+(followed by a restart of the daemon if `asd` is already active).
 
-See the example in the PREVIEW MODE section above which shows a system using
-overlayfs to illustrate the memory savings that can be achieved. Note the
-"overlayfs size" report compared to the total "dir size" report for each sync
-target. Be aware that these numbers will change depending on just how much data
-is written to the sync target, but in common use cases, the overlayfs size will
-always be less than the dir size.
+There are several versions of OverlayFS available to the Linux kernel in
+production in various distros.  Versions 22 and lower have a module called
+`overlayfs` while newer versions (23 and higher) have a module called `overlay`
+-- note the lack of the "fs" in the newer version.  `asd` will automatically
+detect the OverlayFS version available to your kernel when `USE_OVERLAYFS` is
+enabled.
 
-Q2: Why do I see directory ".foo-backup_asd" ".foo-backup_asd-old"?
+See the example in [the "PREVIEW MODE" section](#preview-mode) above which
+shows a system using OverlayFS to illustrate the memory savings that can be
+achieved.  Note the "overlayfs size" report compared to the total "dir size"
+report for each sync target.  Be aware that these numbers will change depending
+on just how much data is written to the sync target, but in common use cases,
+the OverlayFS size will always be less than the dir size.
 
-A2: The way the backup process of asd works is that it creates a hard linked
-clone of the original directory; this is known as .foo-backup_asd-old. The
-other .foo-backup_asd is just a bind mount to the original directory link which
-is used to access the contents of the original directory for overlay purposes.
+## Q2: Why do I see the directories `.foo-backup_asd` and `.foo-backup_asd-old`?
 
-Q3: My system crashed and asd didn't sync back. What do I do?
+## A2:
 
-A3: The "last good" backup of your sync targets is just fine still sitting
-happily on your filesystem. Upon restarting asd (on a reboot for example), a
-check is preformed to see if asd was exited in some corrupted state. If it is
-detected, asd will snapshot the "last good" backup before it rotates it back
-into place. Note that, since asd tries to decrease the disk usage, it never
+The `asd` backup process works by creating a hard-linked clone of the original
+directory; this is known as `.foo-backup_asd-old`.  The other `.foo-backup_asd`
+is just a bind mount to the original directory link which is used to access the
+contents of the original directory for overlay purposes.
+
+## Q3: My system crashed and `asd` didn't sync back.  What do I do?
+
+## A3:
+
+The "last good" backup of your sync targets is just fine still sitting
+happily on your filesystem.  Upon restarting `asd` (on a reboot for example), a
+check is preformed to see if `asd` was exited in some corrupted state.  If it is
+detected, `asd` will snapshot the "last good" backup before it rotates it back
+into place.  Note that, since `asd` tries to decrease the disk usage, it never
 really "copies" the full contents of the directory and just uses the hardlinks
-to the previous files. And during the rsync step, it creates new files so that
-the previous hardlinks are untouched. So trying to modify the directory during
-the time asd is trying to backup can leave the directory in some corrupted
-state.
+to the previous files.  And during the `rsync` step, it creates new files so
+that the previous hardlinks are untouched.  So trying to modify the directory
+during the time `asd` is trying to backup can leave the directory in some
+corrupted state.
 
-Q4: Where can I find this snapshot?
+## Q4: Where can I find the crash-recovery snapshot?
 
-A4: You will find the snapshot in the same directory as the sync target and it
-will contain a date-time-stamp that corresponds to the time at which the
-recovery took place. For example, a /foo/bar snapshot will be
-/foo/.bar-backup_asd-crashrecovery-20141221_070112.tar.zstd -- of course, the
-date_time suffix will be different for you.
+## A4:
 
-Q5: How can I restore the snapshot?
+You will find the snapshot in the same directory as the sync target.  It will
+contain a `<date>_<time>` suffix that corresponds to the time at which the
+recovery took place.  For example, a `/foo/bar` snapshot will have a path like
+`/foo/.bar-backup_asd-crashrecovery-20141221_070112.tar.zstd` -- of course, the
+`<date>_<time>` suffix will be different for you.
 
-A5: Follow these steps:
+## Q5: How can I restore the crash-recovery snapshot?
 
-1. Stop asd.
-2. Confirm that the directories created by asd is not present. If they are, asd
-   did not stop correctly for other reasons.
+## A5:
+
+Follow these steps:
+
+1. Stop `asd`.
+2. Confirm that the directories created by `asd` are not present.  If they are,
+   `asd` did not stop correctly for other reasons.
 3. Move the "bad" copy of the sync taget to a backup (don't blindly delete
    anything).
 4. Untar the snapshot directory to the expected sync target.
 
 Example using `/foo/bar` under systemd:
 
-1. `systemctl stop asd.service`
-2. `cd /foo`
-3. `mv bar bar-bad`
-4. `tar -xvf .bar-backup_asd-crashrecovery-20141221_070112.tar.zstd`
+```shell-session
+# systemctl stop asd.service
+# cd /foo
+# mv bar bar-bad
+# tar -xvf .bar-backup_asd-crashrecovery-20141221_070112.tar.zstd
+```
 
-At this point, check that everything is fine with the data on /foo/bar and, if
+At this point, check that everything is fine with the data on `/foo/bar`.  If
 all is well, it is safe to delete the snapshot.
 
-Q6: Can asd delete the snapshots automatically?
+## Q6: Can `asd` delete the snapshots automatically?
 
-A6: Yes, run asd with the "clean" switch to delete snapshots.
+## A6:
+
+Yes, run `asd` with the `clean` switch to delete snapshots.  See the ["CLEAN
+MODE"](#clean-mode) section for details.
 
 # CONTRIBUTE
 
-Users wishing to contribute to this code, should fork and send a pull request.
+Users wishing to contribute to this code should fork and send a pull request.
 Source is freely available on the project page linked below.
 
 # BUGS
 
 Discover a bug? Please open an issue on the project page linked below.
 
-- Currently, asd cannot handle open files on a sync target so if a hung process
-  has something open there, it can be messy.
+## KNOWN BUGS
+
+- Currently, `asd` cannot handle open files on a sync target, so if a hung
+  process has something open there, it can be messy.
 
 # ONLINE
 
