@@ -429,6 +429,82 @@ else
   }
 fi
 
+find_mount() {
+  findmnt --noheadings --notruncate "$@"
+}
+
+bind_mount_fsroot() {
+  local with_fsroot without_fsroot
+
+  with_fsroot="$(find_mount -o SOURCE -M "${1?}")" || return
+  without_fsroot="$(find_mount --nofsroot -o SOURCE -M "${1?}")" || return
+
+  # Not a bind mount
+  [[ "$with_fsroot" != "$without_fsroot" ]] || return
+
+  local fsroot="${with_fsroot#"${without_fsroot}["}"
+  printf -- '%s\n' "${fsroot%]}"
+}
+
+mount_is_overlay() {
+  local fstype
+  fstype="$(find_mount -o FSTYPE -M "${1?}")" || return
+
+  case "$fstype" in
+    overlay | overlayfs )
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+mount_options_match() {
+  local src="$1"
+  shift
+
+  local tgt="$1"
+  shift
+
+  local src_options tgt_options
+  src_options="$(find_mount -o FS-OPTIONS -m "$src")" || return
+  tgt_options="$(find_mount -o FS-OPTIONS -m "$tgt")" || return
+
+  [[ "$src_options" == "$tgt_options" ]]
+}
+
+bind_mount_has_expected_source() {
+  local src="$1"
+  shift
+
+  local tgt="$1"
+  shift
+
+  local fsroot
+  fsroot="$(bind_mount_fsroot "$tgt")" && [[ "$fsroot" == "$src" ]]
+}
+
+sync_target_is_mounted() {
+  local src="$1"
+  shift
+
+  local tgt="$1"
+  shift
+
+  if bind_mount_has_expected_source "$src" "$tgt"; then
+    return 0
+  fi
+
+  # Don't bother checking whether overlays are mounted if we're not using
+  # overlays.
+  [[ "${OLFS:-}" = 1 ]] || return
+
+  mount_is_overlay "$tgt" || return
+
+  ! mount_is_overlay "$src" || mount_options_match "$src" "$tgt"
+}
+
 # Call a provided command for each entry in `WHATTOSYNC`, setting certain
 # variables for use within the command.
 for_each_dir() {
@@ -606,43 +682,88 @@ ungraceful_state_check() {
 
     debug_vars DIR BACKUP BACK_OLD USER TMP
 
-    if [[ -v TMP ]] && [[ -e "${TMP?}/.flagged" ]] || ! [[ -d "$BACKUP" ]]; then
-      debug "No ungraceful state detected for ${DIR?}"
-      # all is well so continue
-      return
+    local dir_is_mounted=0 backup_is_mounted=0 tmp_is_mounted=0
+
+    if [[ -d "$BACKUP" ]] && bind_mount_has_expected_source "$DIR" "$BACKUP"; then
+      debug "Backup directory ${BACKUP} is currently mounted"
+      backup_is_mounted=1
     else
-      diag "Ungraceful state detected for ${DIR?} so fixing"
+      debug "Backup directory ${BACKUP} is currently unmounted"
+    fi
 
-      local NOW
-      NOW="$(date +%Y%m%d_%H%M%S 2>/dev/null)" || :
-
-      if mountpoint -q "$DIR"; then
-        ON_START="unmounting ${DIR}" verbosely run_mount_helper -d "$DIR" mountdownall || return
+    if [[ -v TMP ]]; then
+      if [[ -d "$DIR" ]] && sync_target_is_mounted "$TMP" "$DIR"; then
+        debug "Sync target ${DIR} is currently mounted"
+        dir_is_mounted=1
+      else
+        debug "Sync target ${DIR} is currently unmounted"
       fi
 
-      if mountpoint -q "$BACKUP"; then
-        ON_START="unmounting ${BACKUP}" verbosely run_mount_helper -d "$BACKUP" mountdownall || return
-        rm -rf "$BACKUP"
-        debug "removed ${BACKUP} dir"
-      fi
-
-      if mountpoint -q "$TMP"; then
-        ON_START="unmounting overlay dirs" verbosely run_mount_helper -v "$OLFSVER" -l "$BACKUP" -u "$UPPER" -w "$WORK" -d "$TMP" mountdown || return
-        rm -rf "$TMP" "$UPPER" "$WORK"
-        debug "unmounted overlay dirs"
-      fi
-
-      if [[ -d "${BACK_OLD?}" ]]; then
-        if [[ "$CRRE" = 1 ]]; then
-          local BACK_NEW="${BACKUP}-${CRASH_RECOVERY_SUFFIX}-${NOW}.tar.zstd"
-          debug "copying ${BACK_OLD} to ${BACK_NEW}"
-          tar cf - -C "${BACK_OLD%/*}" "${BACK_OLD##*/}" | pv -s "$(du -sb "$BACK_OLD" | awk '{print $1}')" | zstd > "$BACK_NEW" || return
-        fi
-
-        rm -rf "$BACK_OLD"
-        debug "deleted the ${BACK_OLD} directory"
+      if [[ -d "$TMP" ]] && { [[ "$OLFS" = 0 ]] || mount_is_overlay "$TMP"; }; then
+        debug "Temporary directory ${TMP} is currently present"
+        tmp_is_mounted=1
+      else
+        debug "Temporary directory ${TMP} is currently absent"
       fi
     fi
+
+    if [[ "$dir_is_mounted" != "$backup_is_mounted" ]] || [[ "$backup_is_mounted" != "$tmp_is_mounted" ]]; then
+      debug "Inconsistent mount state detected for sync target ${DIR}"
+    elif [[ "$tmp_is_mounted" = 1 ]]; then
+      if [[ -e "${TMP}/.flagged" ]]; then
+        return
+      fi
+
+      debug "Temporary directory ${TMP} for sync target ${DIR} is not flagged"
+    else
+      return 0
+    fi
+
+    diag "Ungraceful state detected for ${DIR?} so fixing"
+
+    local rc=0
+
+    local NOW
+    NOW="$(date +%Y%m%d_%H%M%S 2>/dev/null)" || :
+
+    if [[ "${dir_is_mounted:-}" = 1 ]]; then
+      ON_START="unmounting ${DIR}" verbosely run_mount_helper -d "$DIR" mountdownall || rc="$?"
+    fi
+
+    if [[ "${backup_is_mounted:-}" = 1 ]]; then
+      if ON_START="unmounting ${BACKUP}" verbosely run_mount_helper -d "$BACKUP" mountdownall; then
+        rm -rf "$BACKUP"
+        debug "removed ${BACKUP} dir"
+      else
+        rc="$?"
+      fi
+    fi
+
+    if [[ "$OLFS" = 1 ]] && [[ "${tmp_is_mounted:-}" = 1 ]]; then
+      if ON_START="unmounting overlay dirs" verbosely run_mount_helper -v "$OLFSVER" -l "$BACKUP" -u "$UPPER" -w "$WORK" -d "$TMP" mountdown; then
+        rm -rf "$TMP" "$UPPER" "$WORK"
+        debug "unmounted overlay dirs"
+      else
+        rc="$?"
+      fi
+    fi
+
+    if [[ -d "${BACK_OLD?}" ]]; then
+      if [[ "$CRRE" = 1 ]]; then
+        local BACK_NEW="${BACKUP}-${CRASH_RECOVERY_SUFFIX}-${NOW}.tar.zstd"
+        debug "copying ${BACK_OLD} to ${BACK_NEW}"
+        tar cf - -C "${BACK_OLD%/*}" "${BACK_OLD##*/}" | pv -s "$(du -sb "$BACK_OLD" | awk '{print $1}')" | zstd > "$BACK_NEW" || rc="$?"
+      fi
+
+      rm -rf "$BACK_OLD"
+      debug "deleted the ${BACK_OLD} directory"
+    fi
+
+    if [[ -v TMP ]] && (( rc == 0 )); then
+      rm -f "${TMP?}/.flagged"
+    fi
+
+    return "$rc"
   }
 
   for_each_dir _ungraceful_state_check
