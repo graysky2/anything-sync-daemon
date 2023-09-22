@@ -881,9 +881,9 @@ parse() {
   fi
 
   if [[ "$OLFS" = 1 ]]; then
-    ediag "${BLD} Overlayfs v${OLFSVER} is currently ${GRN}active${NRM}${BLD}.${NRM}"
+    ediag "${BLD} OverlayFS v${OLFSVER} is currently ${GRN}active${NRM}${BLD}.${NRM}"
   else
-    ediag "${BLD} Overlayfs technology is currently ${RED}inactive${NRM}${BLD}.${NRM}"
+    ediag "${BLD} OverlayFS technology is currently ${RED}inactive${NRM}${BLD}.${NRM}"
   fi
 
   diag
