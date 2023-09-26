@@ -26,6 +26,11 @@
             self.nixosModules.anything-sync-daemon
           ];
 
+          # Install `anything-sync-daemon` and `asd-mount-helper` globally.
+          # Makes it possible to run `asd-mount-helper` in the `check.sh`
+          # helper script.
+          environment.systemPackages = [config.services.asd.package];
+
           security.sudo = {
             enable = true;
             extraRules = [
@@ -34,6 +39,13 @@
                 commands = [
                   {
                     command = "${config.services.asd.package}/bin/asd-mount-helper";
+                    options = ["NOPASSWD" "SETENV"];
+                  }
+
+                  # Permit running `asd-mount-helper` as superuser in
+                  # `check.sh`.
+                  {
+                    command = "/run/current-system/sw/bin/asd-mount-helper";
                     options = ["NOPASSWD" "SETENV"];
                   }
                 ];
@@ -133,6 +145,67 @@
 
             asd.wait_until_succeeds('${./check.sh} before foo bar baz quux corge grault')
             asd.wait_until_succeeds('sudo -u ${user} ${./check.sh} before foo bar baz quux corge grault')
+
+          with subtest('checking that asd recovers from a partial mount scenario'):
+            asd.wait_for_unit('asd.service')
+            asd.wait_for_unit('asd.service', user='${user}')
+
+            def check_partial_mount_root(op, msg):
+              def _check_partial_mount_root(_):
+                success = True
+
+                try:
+                  asd.succeed('${./check.sh} {0} 1>&2'.format(op))
+                  asd.systemctl('restart asd-resync.timer')
+                  asd.succeed('journalctl -b 0 --no-pager --unit="asd-resync.service" --grep="{0}" 1>&2'.format(msg))
+                  asd.succeed('journalctl -b 0 --no-pager --unit="asd-resync.service" --grep="Inconsistent mount state" 1>&2')
+                  asd.succeed('journalctl -b 0 --no-pager --unit="asd-resync.service" --grep="Ungraceful state detected" 1>&2')
+                except:
+                  success = False
+
+                return success
+
+              return _check_partial_mount_root
+
+            def check_partial_mount_user(op, msg):
+              def _check_partial_mount_user(_):
+                success = True
+
+                try:
+                  asd.succeed('sudo -u ${user} ${./check.sh} {0} 1>&2'.format(op))
+                  asd.systemctl('restart asd-resync.timer', user='${user}')
+                  asd.succeed('sudo -u ${user} journalctl -b 0 --no-pager --user --unit="asd-resync.service" --grep="{0}" 1>&2'.format(msg))
+                  asd.succeed('sudo -u ${user} journalctl -b 0 --no-pager --user --unit="asd-resync.service" --grep="Inconsistent mount state" 1>&2')
+                  asd.succeed('sudo -u ${user} journalctl -b 0 --no-pager --user --unit="asd-resync.service" --grep="Ungraceful state detected" 1>&2')
+                except:
+                  success = False
+
+                return success
+
+              return _check_partial_mount_user
+
+            cases = {
+              'umountb': 'Sync target.*is currently unmounted',
+              'umountv': 'Temporary directory.*is currently absent',
+              'umountx': 'Backup directory.*is currently unmounted',
+            }
+
+            for op, msg in cases.items():
+              retry(check_partial_mount_root(op, msg))
+              retry(check_partial_mount_user(op, msg))
+
+          with subtest('checking that asd recovers from wrongly-flagged tmp directories'):
+            asd.stop_job('asd.service')
+            asd.stop_job('asd.service', user='${user}')
+
+            asd.succeed('${./check.sh} flag')
+            asd.succeed('sudo -u ${user} ${./check.sh} flag')
+
+            asd.start_job('asd.service')
+            asd.start_job('asd.service', user='${user}')
+
+            asd.wait_for_unit('asd.service')
+            asd.wait_for_unit('asd.service', user='${user}')
 
           with subtest('checking that crash recovery file is generated after hard crash'):
             for _ in range(${toString nodes.asd.services.asd.system.backupLimit} + 2):

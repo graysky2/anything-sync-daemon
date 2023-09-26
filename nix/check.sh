@@ -71,6 +71,41 @@ crash() {
     fi
 }
 
+# shellcheck disable=SC2317
+flag() {
+    install -D /dev/null "${v}/.flagged"
+}
+
+# shellcheck disable=SC2317
+run_mount_helper() {
+    mountpoint="${1?}"
+    shift
+
+    # Don't bother unmounting if the target path is not a mountpoint.
+    # Likewise, don't fail if the umount operation fails but the target path is
+    # no longer a mountpoint -- this helps address potential race conditions
+    # where something else (e.g. `asd` itself) has unmounted the target path.
+    #
+    # If `SUDO_USER` is defined, this command is being run with `sudo` as an
+    # unprivileged user, and we need to use `sudo` to run the mount helper.
+    ! mountpoint -q "$mountpoint" ||  ${SUDO_USER:+sudo} asd-mount-helper -d "$mountpoint" "$@" || ! mountpoint -q "$mountpoint"
+}
+
+# shellcheck disable=SC2317
+umountb() {
+    run_mount_helper "$b" mountdownall
+}
+
+# shellcheck disable=SC2317
+umountv() {
+    run_mount_helper "$v" mountdownall
+}
+
+# shellcheck disable=SC2317
+umountx() {
+    run_mount_helper "$x" mountdownall
+}
+
 # shellcheck disable=SC3028
 euid="${EUID:-$(id -u 2>/dev/null)}"
 euid="${euid:-0}"
@@ -90,7 +125,7 @@ fi
 x="${b%/*}/.${b##*/}-backup_asd"
 
 case "$1" in
-    setup|before|after|crash)
+    setup|before|after|crash|flag|umountb|umountv|umountx)
         "$@"
         exit
         ;;
