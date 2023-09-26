@@ -11,80 +11,9 @@
         name = "anything-sync-daemon";
 
         nodes.asd = {
-          config,
-          lib,
-          ...
-        }: let
-          common = {
-            enable = true;
-            resyncTimer = "3s";
-            backupLimit = 2;
-            useOverlayFS = true;
-          };
-        in {
           imports = [
-            self.nixosModules.anything-sync-daemon
+            self.nixosModules.example-profile
           ];
-
-          # Install `anything-sync-daemon` and `asd-mount-helper` globally.
-          # Makes it possible to run `asd-mount-helper` in the `check.sh`
-          # helper script.
-          environment.systemPackages = [config.services.asd.package];
-
-          security.sudo = {
-            enable = true;
-            extraRules = [
-              {
-                users = [config.users.users.asduser.name];
-                commands = [
-                  {
-                    command = "${config.services.asd.package}/bin/asd-mount-helper";
-                    options = ["NOPASSWD" "SETENV"];
-                  }
-
-                  # Permit running `asd-mount-helper` as superuser in
-                  # `check.sh`.
-                  {
-                    command = "/run/current-system/sw/bin/asd-mount-helper";
-                    options = ["NOPASSWD" "SETENV"];
-                  }
-                ];
-              }
-            ];
-          };
-
-          # `false` is the default; set it here anyway to document that we want
-          # user processes (e.g. `asd-resync`) to persist after the user
-          # session closes.
-          services.logind.killUserProcesses = false;
-
-          services.asd.system = lib.mkMerge [
-            common
-
-            {
-              whatToSync = [
-                "/var/lib/what-to-sync"
-              ];
-            }
-          ];
-
-          services.asd.user = lib.mkMerge [
-            common
-
-            {
-              extraConfig = ''
-                WHATTOSYNC=(
-                  "''${HOME}/what-to-sync"
-                )
-              '';
-            }
-          ];
-
-          users.users.asduser = {
-            createHome = true;
-            home = "/home/asduser";
-            isNormalUser = true;
-          };
         };
 
         testScript = {nodes, ...}: let
