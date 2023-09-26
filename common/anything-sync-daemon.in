@@ -1061,7 +1061,7 @@ case "${1:-}" in
     cleanup
     ;;
   sync)
-    if [[ ! -f "$DAEMON_FILE" ]]; then
+    if ! [[ -f "$DAEMON_FILE" ]]; then
       dep_check
       config_check
       ungraceful_state_check
