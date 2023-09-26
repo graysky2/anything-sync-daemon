@@ -9,12 +9,19 @@
 
     flake-parts.url = "github:hercules-ci/flake-parts";
 
+    nixos-shell.url = "github:Mic92/nixos-shell";
+    nixos-shell.inputs.nixpkgs.follows = "nixpkgs";
+
     treefmt-nix.url = "github:numtide/treefmt-nix";
     treefmt-nix.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs = inputs:
-    inputs.flake-parts.lib.mkFlake {inherit inputs;} ({lib, ...}: {
+    inputs.flake-parts.lib.mkFlake {inherit inputs;} ({
+      self,
+      lib,
+      ...
+    }: {
       debug = true;
 
       systems = lib.subtractLists [
@@ -43,6 +50,28 @@
         apps.devshell = self'.devShells.default.flakeApp;
         overlayAttrs = {
           inherit (config.packages) anything-sync-daemon;
+        };
+      };
+
+      flake = {
+        nixosConfigurations.example = inputs.nixpkgs.lib.nixosSystem {
+          system = "x86_64-linux";
+          modules = [
+            ({config, ...}: {
+              # Make the VM more self-contained.
+              nixos-shell.mounts = {
+                mountHome = false;
+                mountNixProfile = false;
+                cache = "none";
+              };
+
+              # Silence stateVersion warning.
+              system.stateVersion = config.system.nixos.release;
+            })
+
+            inputs.nixos-shell.nixosModules.nixos-shell
+            self.nixosModules.example-profile
+          ];
         };
       };
     });

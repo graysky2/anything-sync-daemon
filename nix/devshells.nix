@@ -1,21 +1,32 @@
-{lib, ...}: {
+{
+  lib,
+  inputs,
+  ...
+}: {
   perSystem = {
     config,
+    inputs',
     pkgs,
     system,
     ...
   }: {
     devshells.default = {
-      commands = [
-        {
-          name = "fmt";
-          category = "linting";
-          help = "Lint and format this project's shell and Nix code";
-          command = ''
-            exec ${config.treefmt.build.wrapper}/bin/treefmt "$@"
-          '';
-        }
-      ];
+      commands =
+        [
+          {
+            name = "fmt";
+            category = "linting";
+            help = "Lint and format this project's shell and Nix code";
+            command = ''
+              exec ${config.treefmt.build.wrapper}/bin/treefmt "$@"
+            '';
+          }
+        ]
+        ++ lib.optional (lib.hasAttr system inputs.nixos-shell.packages) {
+          category = "dev";
+          package = inputs'.nixos-shell.packages.nixos-shell;
+          help = "Spawn lightweight NixOS VMs in a shell";
+        };
 
       devshell = {
         packagesFrom = [config.packages.anything-sync-daemon];

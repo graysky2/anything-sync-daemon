@@ -39,6 +39,26 @@
         "type": "github"
       }
     },
+    "nixos-shell": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1686216465,
+        "narHash": "sha256-0A4K6xVIyxUi2YZu4+156WwzAO1GDWGcKiMvsXpBQDQ=",
+        "owner": "Mic92",
+        "repo": "nixos-shell",
+        "rev": "65489e7eeef8eeea43e1e4218ad1b99d58852c7c",
+        "type": "github"
+      },
+      "original": {
+        "owner": "Mic92",
+        "repo": "nixos-shell",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1693663421,
@@ -77,6 +97,7 @@
       "inputs": {
         "devshell": "devshell",
         "flake-parts": "flake-parts",
+        "nixos-shell": "nixos-shell",
         "nixpkgs": "nixpkgs",
         "treefmt-nix": "treefmt-nix"
       }
