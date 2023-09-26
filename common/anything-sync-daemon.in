@@ -1047,75 +1047,79 @@ parse() {
   NEED_CRASHArr=1 for_each_dir _parse
 }
 
-case "${1:-}" in
-  p|P|Parse|parse|Preview|preview|debug)
-    header
-    dep_check
-    config_check
-    parse
-    ;;
-  c|C|clean|Clean)
-    header
-    dep_check
-    config_check
-    cleanup
-    ;;
-  sync)
-    if ! [[ -f "$DAEMON_FILE" ]]; then
+main() {
+  case "${1:-}" in
+    p|P|Parse|parse|Preview|preview|debug)
+      header
       dep_check
       config_check
-      ungraceful_state_check
-      do_sync
-      enforce
-    else
-      ediag "${GRN}ASD is already running${NRM}"
-    fi
-    ;;
-  resync)
-    if [[ -f "$DAEMON_FILE" ]]; then
-      ungraceful_state_check
-      do_sync
-    else
-      ediag "${RED}ASD is not running${NRM}"
-    fi
-    ;;
-  unsync)
-    # make sure the daemon ran to setup the links
-    if [[ -f "$DAEMON_FILE" ]]; then
-      ungraceful_state_check
-      do_sync
-      do_unsync
-    else
-      ediag "${RED}ASD is not running${NRM}"
-    fi
-    ;;
-  *)
-    echo -e "${BLD}Anything-sync-daemon v${VERS}${NRM}"
-    echo
-    echo -e " ${BLD}${0} ${NRM}${GRN}[option]${NRM}"
-    echo -e " ${BLD} ${NRM}${GRN}preview${NRM}${BLD}  Parse config file (${NRM}${BLU}${ASDCONF}${NRM}${BLD}) to see what will be managed.${NRM}"
-    echo -e " ${BLD} ${NRM}${GRN}clean${NRM}${BLD}		Clean (delete without prompting) ALL crashrecovery dirs.${NRM}"
-    echo -e " ${BLD} ${NRM}${GRN}resync${NRM}${BLD} Synchronize the tmpfs and media bound copy. Must be run as root user.${NRM}"
-    echo -e " ${BLD} ${NRM}${RED}sync${NRM}${BLD}   Force a manual sync. NOT recommended.${NRM}"
-    echo -e " ${BLD} ${NRM}${RED}unsync${NRM}${BLD} Force a manual unsync. NOT recommended.${NRM}"
-    echo
-    echo -e " ${BLD}It is ${RED}HIGHLY DISCOURAGED${NRM}${BLD} to directly call ${0} to sync or to unsync.${NRM}"
-    if looks_like_systemd; then
-      echo -e " ${BLD}Instead, use systemd to start/stop anything-sync-daemon.${NRM}"
+      parse
+      ;;
+    c|C|clean|Clean)
+      header
+      dep_check
+      config_check
+      cleanup
+      ;;
+    sync)
+      if ! [[ -f "$DAEMON_FILE" ]]; then
+        dep_check
+        config_check
+        ungraceful_state_check
+        do_sync
+        enforce
+      else
+        ediag "${GRN}ASD is already running${NRM}"
+      fi
+      ;;
+    resync)
+      if [[ -f "$DAEMON_FILE" ]]; then
+        ungraceful_state_check
+        do_sync
+      else
+        ediag "${RED}ASD is not running${NRM}"
+      fi
+      ;;
+    unsync)
+      # make sure the daemon ran to setup the links
+      if [[ -f "$DAEMON_FILE" ]]; then
+        ungraceful_state_check
+        do_sync
+        do_unsync
+      else
+        ediag "${RED}ASD is not running${NRM}"
+      fi
+      ;;
+    *)
+      echo -e "${BLD}Anything-sync-daemon v${VERS}${NRM}"
       echo
-      echo -e " ${BLD}systemctl ${NRM}${GRN}[option]${NRM}${BLD} asd asd-resync${NRM}"
-      echo -e " ${BLD} ${NRM}${GRN}start${NRM}${BLD}    Turn on daemon; make symlinks and actively manage targets in tmpfs.${NRM}"
-      echo -e " ${BLD} ${NRM}${GRN}stop${NRM}${BLD}   Turn off daemon; remove symlinks and rotate tmpfs data back to disc.${NRM}"
-      echo -e " ${BLD} ${NRM}${GRN}enable${NRM}${BLD} Autostart daemon when system comes up.${NRM}"
-      echo -e " ${BLD} ${NRM}${GRN}disable${NRM}${BLD}  Remove daemon from the list of autostart daemons.${NRM}"
-    elif [[ -f /etc/init.d/asd ]]; then
-      echo -e " ${BLD}Instead, use the init system to start/stop anything-sync-daemon.${NRM}"
+      echo -e " ${BLD}${0} ${NRM}${GRN}[option]${NRM}"
+      echo -e " ${BLD} ${NRM}${GRN}preview${NRM}${BLD}  Parse config file (${NRM}${BLU}${ASDCONF}${NRM}${BLD}) to see what will be managed.${NRM}"
+      echo -e " ${BLD} ${NRM}${GRN}clean${NRM}${BLD}		Clean (delete without prompting) ALL crashrecovery dirs.${NRM}"
+      echo -e " ${BLD} ${NRM}${GRN}resync${NRM}${BLD} Synchronize the tmpfs and media bound copy. Must be run as root user.${NRM}"
+      echo -e " ${BLD} ${NRM}${RED}sync${NRM}${BLD}   Force a manual sync. NOT recommended.${NRM}"
+      echo -e " ${BLD} ${NRM}${RED}unsync${NRM}${BLD} Force a manual unsync. NOT recommended.${NRM}"
       echo
-      echo -e " ${BLD}sudo service asd ${NRM}${GRN}[option]${NRM}${BLD} or /etc/init.d/asd ${NRM}${GRN}[option]${NRM}"
-      echo -e " ${BLD} ${NRM}${GRN}start${NRM}${BLD}  Turn on daemon; make symlinks and actively manage targets in tmpfs.${NRM}"
-      echo -e " ${BLD} ${NRM}${GRN}stop${NRM}${BLD} Turn off daemon; remove symlinks and rotate tmpfs data back to disc.${NRM}"
-    fi
-    ;;
-esac
+      echo -e " ${BLD}It is ${RED}HIGHLY DISCOURAGED${NRM}${BLD} to directly call ${0} to sync or to unsync.${NRM}"
+      if looks_like_systemd; then
+        echo -e " ${BLD}Instead, use systemd to start/stop anything-sync-daemon.${NRM}"
+        echo
+        echo -e " ${BLD}systemctl ${NRM}${GRN}[option]${NRM}${BLD} asd asd-resync${NRM}"
+        echo -e " ${BLD} ${NRM}${GRN}start${NRM}${BLD}    Turn on daemon; make symlinks and actively manage targets in tmpfs.${NRM}"
+        echo -e " ${BLD} ${NRM}${GRN}stop${NRM}${BLD}   Turn off daemon; remove symlinks and rotate tmpfs data back to disc.${NRM}"
+        echo -e " ${BLD} ${NRM}${GRN}enable${NRM}${BLD} Autostart daemon when system comes up.${NRM}"
+        echo -e " ${BLD} ${NRM}${GRN}disable${NRM}${BLD}  Remove daemon from the list of autostart daemons.${NRM}"
+      elif [[ -f /etc/init.d/asd ]]; then
+        echo -e " ${BLD}Instead, use the init system to start/stop anything-sync-daemon.${NRM}"
+        echo
+        echo -e " ${BLD}sudo service asd ${NRM}${GRN}[option]${NRM}${BLD} or /etc/init.d/asd ${NRM}${GRN}[option]${NRM}"
+        echo -e " ${BLD} ${NRM}${GRN}start${NRM}${BLD}  Turn on daemon; make symlinks and actively manage targets in tmpfs.${NRM}"
+        echo -e " ${BLD} ${NRM}${GRN}stop${NRM}${BLD} Turn off daemon; remove symlinks and rotate tmpfs data back to disc.${NRM}"
+      fi
+      ;;
+  esac
+}
+
+main "$@"
 
 # vim:set ts=2 sw=2 et:
