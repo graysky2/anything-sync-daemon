@@ -72,13 +72,21 @@ running_as_root() {
   (( euid == 0 ))
 }
 
+run_systemctl_system() {
+  systemctl --system "$@"
+}
+
+run_systemctl_user() {
+  systemctl --user "$@"
+}
+
 looks_like_systemd_system() {
-  systemctl --system list-unit-files asd.service &>/dev/null \
+  run_systemctl_system list-unit-files asd.service &>/dev/null \
     || [[ -f /usr/lib/systemd/system/asd.service ]]
 }
 
 looks_like_systemd_user() {
-  systemctl --user list-unit-files asd.service &>/dev/null \
+  run_systemctl_user list-unit-files asd.service &>/dev/null \
     || [[ -f /usr/lib/systemd/user/asd.service ]]
 }
 
@@ -678,8 +686,8 @@ do_unsync() {
 parse() {
   if looks_like_systemd; then
     # running systemd
-    asd_state="$(systemctl_show -p ActiveState --value asd 2>/dev/null)" || :
-    resync_state="$(systemctl_show -p ActiveState --value asd-resync.timer 2>/dev/null)" || :
+    asd_state="$(run_systemctl show -p ActiveState --value asd 2>/dev/null)" || :
+    resync_state="$(run_systemctl show -p ActiveState --value asd-resync.timer 2>/dev/null)" || :
 
     if [[ "$asd_state" = "active" ]]; then
       asd_color="$GRN"
@@ -784,12 +792,12 @@ setup_early() {
   debug "flock found"
 
   if running_as_root; then
-    looks_like_systemd() {
-      looks_like_systemd_system
+    run_systemctl() {
+      run_systemctl_system "$@"
     }
 
-    systemctl_show() {
-      systemctl --system "$@"
+    looks_like_systemd() {
+      looks_like_systemd_system
     }
 
     if looks_like_systemd; then
@@ -800,12 +808,12 @@ setup_early() {
       ASDRUNDIR="${ASDRUNDIR:-/run/asd}"
     fi
   else
-    looks_like_systemd() {
-      looks_like_systemd_user
+    run_systemctl() {
+      run_systemctl_user "$@"
     }
 
-    systemctl_show() {
-      systemctl --user "$@"
+    looks_like_systemd() {
+      looks_like_systemd_user
     }
 
     if looks_like_systemd; then
