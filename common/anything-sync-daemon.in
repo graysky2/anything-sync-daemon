@@ -13,6 +13,11 @@ ediag() {
   diag -e "$@"
 }
 
+croak() {
+  local rc="$?"
+  ediag "${RED}ERROR:${NRM} $*"
+  return "$rc"
+}
 
 verbosely() {
   if (( "$#" < 1 )); then
@@ -773,11 +778,9 @@ setup_early() {
     }
   fi
 
-  if [[ "${FLOCKER:-}" != "$0" ]]; then
-    debug "checking flock"
-    have_dep_diag flock || return
-    debug "flock found"
-  fi
+  debug "checking flock"
+  have_dep_diag flock || return
+  debug "flock found"
 
   if running_as_root; then
     looks_like_systemd() {
@@ -1065,11 +1068,15 @@ setup_late() {
 main() {
   setup_early || return
 
-  # shellcheck disable=SC2015
-  if [[ "${FLOCKER:-}" != "$0" ]]; then
-    ediag "${RED}Waiting for lock...${NRM}"
-    FLOCKER="$0" exec flock -x "$LOCKFILE" "$BASH" "-$-" "$0" "$@"
-  fi
+  exec {flock_fd}>>"$LOCKFILE" || {
+    croak "failed to open lockfile ${LOCKFILE}"
+    return
+  }
+
+  flock -x -n "$flock_fd" || {
+    croak "failed to obtain exclusive lock on lockfile ${LOCKFILE}"
+    return
+  }
 
   setup_late || return
 
