@@ -437,7 +437,8 @@ ungraceful_state_check() {
     local rc=0
 
     local NOW
-    NOW="$(date +%Y%m%d_%H%M%S 2>/dev/null)" || :
+    printf -v NOW '%(%Y%m%d_%H%M%S)T' 2>/dev/null || :
+    NOW="${NOW:-"$(date +%Y%m%d_%H%M%S 2>/dev/null)"}" || :
 
     if [[ "${dir_is_mounted:-}" = 1 ]]; then
       ON_START="unmounting ${DIR}" verbosely run_mount_helper -d "$DIR" mountdownall || rc="$?"
