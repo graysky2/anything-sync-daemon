@@ -328,7 +328,7 @@ config_check() {
   local rc=0
 
   # nothing to do if these are empty
-  if (( "${#WHATTOSYNC[@]}" < 1 )); then
+  if ! [[ -v WHATTOSYNC ]] || (( "${#WHATTOSYNC[@]}" < 1 )); then
     ediag " ${BLD}Must define at least one directory in ${NRM}${BLU}${ASDCONF}${NRM}"
     rc=1
   fi
