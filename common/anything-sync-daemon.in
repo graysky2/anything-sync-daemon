@@ -1152,6 +1152,9 @@ main() {
   esac
 }
 
-main "$@"
+# Being executed, not sourced.
+if ! (return 0) &>/dev/null; then
+  main "$@"
+fi
 
 # vim:set ts=2 sw=2 et:
