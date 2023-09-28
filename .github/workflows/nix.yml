@@ -1,4 +1,4 @@
-name: NixOS system tests
+name: NixOS flake checks
 
 on:
   push:
