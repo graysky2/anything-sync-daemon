@@ -77,6 +77,11 @@ flag() {
 }
 
 # shellcheck disable=SC2317
+unflag() {
+    unlink "${v}/.flagged"
+}
+
+# shellcheck disable=SC2317
 run_mount_helper() {
     mountpoint="${1?}"
     shift
@@ -125,7 +130,7 @@ fi
 x="${b%/*}/.${b##*/}-backup_asd"
 
 case "$1" in
-    setup|before|after|crash|flag|umountb|umountv|umountx)
+    setup|before|after|crash|flag|unflag|umountb|umountv|umountx)
         "$@"
         exit
         ;;

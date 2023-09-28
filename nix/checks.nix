@@ -136,17 +136,32 @@
             asd.wait_for_unit('asd.service')
             asd.wait_for_unit('asd.service', user='${user}')
 
-          with subtest('checking that crash recovery file is generated after hard crash'):
+          with subtest('checking that the expected number of crash recovery files are generated upon ungraceful state'):
+            asd.wait_for_unit('asd.service')
+            asd.wait_for_unit('asd.service', user='${user}')
+
+            asd.stop_job('asd-resync.timer')
+            asd.stop_job('asd-resync.timer', user='${user}')
+
+            # Simulate a crash by removing the `.flagged` file
             for _ in range(${toString nodes.asd.services.asd.system.backupLimit} + 2):
-              # ACHTUNG! `asd.succeed('sync')` is *vital* -- otherwise, the
-              # system will break in any number of hilarious ways upon reboot.
-              # For instance, `/var/lib/nixos/uid-map` (used by the
-              # `update-users-groups.pl` script) appears to become corrupt.
-              asd.succeed('sync')
+              asd.stop_job('asd-resync.service')
+              asd.stop_job('asd-resync.service', user='${user}')
 
-              asd.crash()
+              asd.wait_until_succeeds('${./check.sh} unflag')
+              asd.wait_until_succeeds('sudo -u ${user} ${./check.sh} unflag')
 
-              asd.wait_for_unit('asd.service')
+              asd.start_job('asd-resync.service')
+              asd.start_job('asd-resync.service', user='${user}')
+
+            # Restart `asd.service` to enforce limit on number of backups
+            asd.stop_job('asd.service')
+            asd.stop_job('asd.service', user='${user}')
+            asd.start_job('asd.service')
+            asd.start_job('asd.service', user='${user}')
+
+            asd.start_job('asd-resync.timer')
+            asd.start_job('asd-resync.timer', user='${user}')
 
             asd.wait_until_succeeds('env BACKUP_LIMIT=${toString nodes.asd.services.asd.system.backupLimit} ${./check.sh} crash')
             asd.wait_until_succeeds('sudo -u ${user} env BACKUP_LIMIT=${toString nodes.asd.services.asd.system.backupLimit} ${./check.sh} crash')
