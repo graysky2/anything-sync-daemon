@@ -5,8 +5,6 @@
 # Inspired by some code originally written by Colin Verot
 #
 
-readonly PS4='+ ${BASH_SOURCE:-${0}}@${LINENO:-0}${FUNCNAME:+#${FUNCNAME}()}: '
-
 diag() {
   echo "$@" >&2
 }
@@ -15,16 +13,6 @@ ediag() {
   diag -e "$@"
 }
 
-# For debug, add DEBUG=1 asd
-if [[ "${DEBUG:-}" = 1 ]]; then
-  debug() {
-    ediag "$@"
-  }
-else
-  debug() {
-    :
-  }
-fi
 
 verbosely() {
   if (( "$#" < 1 )); then
@@ -46,14 +34,10 @@ verbosely() {
   return 0
 }
 
-set -euo pipefail
-
 # shellcheck disable=SC2317
 diag_error() {
   diag "Error occurred at ${1:-unknown line}"
 }
-
-trap 'diag_error "$LINENO"' ERR
 
 have_dep() {
   command -v "${1?}" &>/dev/null
@@ -66,12 +50,6 @@ have_dep_diag() {
     return "$rc"
   }
 }
-
-if [[ "${FLOCKER:-}" != "$0" ]]; then
-  debug "checking flock"
-  have_dep_diag flock || exit
-  debug "flock found"
-fi
 
 debug_vars() {
   local var
@@ -136,194 +114,6 @@ use_v1_paths() {
   running_as_root && ! is_truthy "${ASDNOV1PATHS:-}"
 }
 
-if running_as_root; then
-  looks_like_systemd() {
-    looks_like_systemd_system
-  }
-
-  systemctl_show() {
-    systemctl --system "$@"
-  }
-
-  if looks_like_systemd; then
-    ASDCONFDIR="${ASDCONFDIR:-"${CONFIGURATION_DIRECTORY:-/etc/asd}"}"
-    ASDRUNDIR="${ASDRUNDIR:-"${RUNTIME_DIRECTORY:-/run/asd}"}"
-  else
-    ASDCONFDIR="${ASDCONFDIR:-/etc/asd}"
-    ASDRUNDIR="${ASDRUNDIR:-/run/asd}"
-  fi
-else
-  looks_like_systemd() {
-    looks_like_systemd_user
-  }
-
-  systemctl_show() {
-    systemctl --user "$@"
-  }
-
-  if looks_like_systemd; then
-    ASDCONFDIR="${ASDCONFDIR:-"${CONFIGURATION_DIRECTORY:-${XDG_CONFIG_HOME:-${HOME?}/.config}/asd}"}"
-    ASDRUNDIR="${ASDRUNDIR:-"${RUNTIME_DIRECTORY:-${XDG_RUNTIME_DIR:-/run/user/${EUID:-$(id -u)}}/asd}"}"
-  else
-    ASDCONFDIR="${ASDCONFDIR:-"${XDG_CONFIG_HOME:-${HOME?}/.config}/asd"}"
-    ASDRUNDIR="${ASDRUNDIR:-"${XDG_RUNTIME_DIR:-/run/user/${EUID:-$(id -u)}}/asd"}"
-  fi
-fi
-
-if [[ -n "${NO_COLOR:-}" ]]; then
-  BLD=''
-  RED=''
-  GRN=''
-  BLU=''
-  NRM=''
-else
-  BLD="\e[01m"
-  RED="\e[01;31m"
-  GRN="\e[01;32m"
-  BLU="\e[01;34m"
-  NRM="\e[00m"
-fi
-
-readonly BLD RED GRN NRM
-
-readonly VERS='@VERSION@'
-
-readonly CRASH_RECOVERY_SUFFIX=crashrecovery
-readonly ASDCONFTIMEOUT="${ASDCONFTIMEOUT:-10}"
-
-ASDNAME=asd
-
-umask 027
-
-if use_v1_paths; then
-  ASDCONF="${ASDCONF:-/etc/asd.conf}"
-  DAEMON_FILE="${DAEMON_FILE:-/run/asd}"
-
-  if [[ "$ASDCONF" != /etc/asd.conf ]]; then
-    suffix="$(realpath "$ASDCONF" | sha256sum | cut -b -16)"
-    ASDNAME="${ASDNAME}-${suffix}"
-    if [[ "$DAEMON_FILE" == /run/asd ]]; then
-      DAEMON_FILE="/run/${ASDNAME}"
-    fi
-  fi
-
-  LOCKFILE="/run/${ASDNAME}-lock"
-else
-  ASDCONF="${ASDCONF:-${ASDCONFDIR}/asd.conf}"
-  DAEMON_FILE="${DAEMON_FILE:-${ASDRUNDIR}/asd.run}"
-  LOCKFILE="${ASDRUNDIR}/asd.lock"
-
-  mkdir -p "$ASDRUNDIR"
-fi
-
-readonly ASDCONFDIR ASDNAME ASDRUNDIR DAEMON_FILE LOCKFILE
-
-readonly ASDCONF_SOURCE="$ASDCONF"
-readonly ASDCONF_SNAPSHOT="${DAEMON_FILE}.conf"
-
-mkdir -p "$(dirname "$DAEMON_FILE")"
-
-# shellcheck disable=SC2015
-if [[ "${FLOCKER:-}" != "$0" ]]; then
-  ediag "${RED}Waiting for lock...${NRM}"
-  FLOCKER="$0" exec flock -x "$LOCKFILE" "$BASH" "-$-" "$0" "$@"
-fi
-
-debug "${RED}ASDNAME:${NRM} ${ASDNAME}"
-debug "${BLU}Configuration file:${NRM} ${ASDCONF_SOURCE}"
-debug "${GRN}Daemon file:${NRM} ${DAEMON_FILE}"
-debug "${RED}Lockfile:${NRM} ${LOCKFILE}\n"
-
-# Setup check /etc/asd.conf
-debug "Checking for existence of ${ASDCONF_SOURCE}"
-if [[ -f "$ASDCONF_SOURCE" ]]; then
-  debug "Checking if asd is already running"
-
-  if [[ -f "$DAEMON_FILE" ]]; then
-    debug "Daemon file found; asd is running"
-  else
-    debug "Daemon file not found; asd is not running"
-  fi
-else
-  ediag " ${BLD}Cannot find ${ASDCONF_SOURCE} so bailing.${NRM}"
-  ediag " ${BLD}Reinstall package to use anything-sync-daemon.${NRM}"
-  exit 1
-fi
-
-# if asd is active, source the snapshot of /etc/asd.conf preferentially
-if [[ -f "$ASDCONF_SNAPSHOT" ]]; then
-  debug "\nRestoring old asd.conf configurations"
-else
-  # make a snapshot of the current configuration on the tmpfs while asd is
-  # running to keep any edits made to the live `ASDCONF` from potentially
-  # orphaning the tmpfs copies thus preserving the data
-  mkdir -p "$(dirname "$ASDCONF_SNAPSHOT")"
-  ON_START="creating configuration snapshot at ${ASDCONF_SNAPSHOT}" \
-    verbosely serialize_conf_vars_with_timeout "$ASDCONF_SOURCE" > "$ASDCONF_SNAPSHOT" || {
-      rc="$?"
-      ediag -n "${BLD}Error creating configuration snapshot ${ASDCONF_SNAPSHOT} from configuration file ${ASDCONF_SOURCE}"
-      case "$rc" in
-        # Probably timed out.  124 is coreutils, 143 is busybox.
-        124|143)
-          diag -n " (sourcing ${ASDCONF_SNAPSHOT} appears to have timed out)"
-          ;;
-      esac
-      ediag "; cannot continue.${NRM}"
-      rm -f "$ASDCONF_SNAPSHOT"
-      exit "$rc"
-    }
-fi
-
-readonly ASDCONF="$ASDCONF_SNAPSHOT"
-
-# shellcheck source=./asd.conf source-path=SCRIPTDIR
-source "$ASDCONF" || {
-  rc="$?"
-  ediag "${BLD}Error sourcing ${ASDCONF}; cannot continue.${NRM}"
-  rm -f "$ASDCONF_SNAPSHOT"
-  exit "$rc"
-}
-
-debug # just for an additional enter
-
-# define default number of crash-recovery snapshots to save if the user did not
-# and check that it is an integer if user did define it
-if ! [[ "${BACKUP_LIMIT:=5}" =~ ^[[:digit:]]+$ ]]; then
-  ediag " ${RED}ERROR:${NRM}${BLD} Bad value for BACKUP_LIMIT detected!${NRM}"
-  exit 1
-fi
-debug "Backup limit: ${BACKUP_LIMIT}"
-
-# saving current extended pattern matching setting
-# command returns non zero exit code if the option is unset hence
-# pipe with `:`
-previous_extglob_setting="$(shopt -p extglob || :)"
-
-# ensuring pattern matching is enabled
-shopt -s extglob
-
-# removing any trailing slash(es) from the list of directories to sync
-# explicitly declare the variable in case it was unset in `ASDCONF`.
-declare -a WHATTOSYNC
-WHATTOSYNC=("${WHATTOSYNC[@]%%+(/)}")
-
-if [[ -z "${VOLATILE:-}" ]]; then
-  if use_v1_paths; then
-    VOLATILE=/tmp
-  else
-    VOLATILE="$ASDRUNDIR"
-  fi
-fi
-
-# removing any trailing slash(es) from the volatile directory
-VOLATILE="${VOLATILE%%+(/)}"
-
-# setting everything back
-$previous_extglob_setting || :
-unset previous_extglob_setting
-
-debug "Volatile dir: ${VOLATILE}"
-
 looks_like_tmpfs_or_zram() {
   df -T "${1?}" | grep -q '\( tmpfs \|^/dev/zram\)'
 }
@@ -336,78 +126,6 @@ looks_like_tmpfs_or_zram_diag() {
   }
 }
 
-# bail if $VOLATILE isn't tmpfs
-looks_like_tmpfs_or_zram_diag "$VOLATILE"
-
-debug "Hardlink safety check: ${ENABLE_HARDLINK_SAFETY_CHECK:=1}"
-
-# simple function to determine user intent rather than using a null value
-if is_truthy "${USE_OVERLAYFS:-}"; then
-  OLFS=1
-else
-  OLFS=0
-fi
-
-# since the default for this one is a yes, need to force a null value to yes
-debug "Backups enabled: ${USE_BACKUPS:=yes}"
-
-if is_truthy "$USE_BACKUPS"; then
-  CRRE=1
-else
-  CRRE=0
-fi
-
-debug "Crash recovery enabled: $CRRE"
-
-# determine is we are using overlayfs (v22 and below) or overlay (v23 and above)
-# overlay FS v23 and later requires both an upper and a work directory, both on
-# the same filesystem, but not part of the same subtree.
-#
-# ubuntu 15.04 has both overlay and overlayfs so prefer version 23
-if [[ "$OLFS" = 1 ]]; then
-  # first test if either module is manually loaded manually or hardcoded
-  if grep -qiE "overlay$" /proc/filesystems 2>/dev/null; then
-    OLFSVER=23
-  elif grep -qiE "overlayfs$" /proc/filesystems 2>/dev/null; then
-    OLFSVER=22
-  # since mount should call modprobe on invocation, check to see if either
-  # module is in the tree using modinfo
-  elif modinfo overlay &>/dev/null; then
-    OLFSVER=23
-  elif modinfo overlayfs &>/dev/null; then
-    OLFSVER=22
-  else
-    diag "overlayfs is not supported by your system, falling back to normal."
-    OLFS=0
-  fi
-fi
-
-debug "overlayfs enabled: $OLFS"
-debug "overlayfs version: ${OLFSVER:-unknown}"
-
-# get distro name
-# first try os-release
-if [[ -f /etc/os-release ]]; then
-  # shellcheck source=/dev/null
-  source /etc/os-release 2>/dev/null || :
-  distro="${PRETTY_NAME:-${NAME}}"
-fi
-
-# if not os-release try issue
-distro="${distro:-$(sed -n '/./ { s| \\.*$||; p; q }' /etc/issue 2>/dev/null)}" || :
-
-if [[ -z "$distro" ]]; then
-  header() {
-    ediag "${BLD}Anything-sync-daemon v${VERS}${NRM}"
-    diag
-  }
-else
-  header() {
-    ediag "${BLD}Anything-sync-daemon v${VERS}${NRM}${BLD} on ${distro}${NRM}"
-    diag
-  }
-fi
-
 # For bind mounts, and for overlay mounts when `USE_OVERLAYFS` is in effect.
 need_sudo_to_mount() {
   ! running_as_root
@@ -418,16 +136,6 @@ need_sudo_to_mount() {
 need_sudo() {
   [[ "${OLFS:-}" = 1 ]] || need_sudo_to_mount
 }
-
-if need_sudo_to_mount; then
-  run_mount_helper() {
-    sudo asd-mount-helper "$@"
-  }
-else
-  run_mount_helper() {
-    asd-mount-helper "$@"
-  }
-fi
 
 find_mount() {
   findmnt --noheadings --notruncate "$@"
@@ -1047,7 +755,324 @@ parse() {
   NEED_CRASHArr=1 for_each_dir _parse
 }
 
+setup_early() {
+  declare -gr PS4='+ ${BASH_SOURCE:-${0}}@${LINENO:-0}${FUNCNAME:+#${FUNCNAME}()}: '
+
+  set -euo pipefail
+
+  trap 'diag_error "$LINENO"' ERR
+
+  # For debug, add DEBUG=1 asd
+  if [[ "${DEBUG:-}" = 1 ]]; then
+    debug() {
+      ediag "$@"
+    }
+  else
+    debug() {
+      :
+    }
+  fi
+
+  if [[ "${FLOCKER:-}" != "$0" ]]; then
+    debug "checking flock"
+    have_dep_diag flock || return
+    debug "flock found"
+  fi
+
+  if running_as_root; then
+    looks_like_systemd() {
+      looks_like_systemd_system
+    }
+
+    systemctl_show() {
+      systemctl --system "$@"
+    }
+
+    if looks_like_systemd; then
+      ASDCONFDIR="${ASDCONFDIR:-"${CONFIGURATION_DIRECTORY:-/etc/asd}"}"
+      ASDRUNDIR="${ASDRUNDIR:-"${RUNTIME_DIRECTORY:-/run/asd}"}"
+    else
+      ASDCONFDIR="${ASDCONFDIR:-/etc/asd}"
+      ASDRUNDIR="${ASDRUNDIR:-/run/asd}"
+    fi
+  else
+    looks_like_systemd() {
+      looks_like_systemd_user
+    }
+
+    systemctl_show() {
+      systemctl --user "$@"
+    }
+
+    if looks_like_systemd; then
+      ASDCONFDIR="${ASDCONFDIR:-"${CONFIGURATION_DIRECTORY:-${XDG_CONFIG_HOME:-${HOME?}/.config}/asd}"}"
+      ASDRUNDIR="${ASDRUNDIR:-"${RUNTIME_DIRECTORY:-${XDG_RUNTIME_DIR:-/run/user/${EUID:-$(id -u)}}/asd}"}"
+    else
+      ASDCONFDIR="${ASDCONFDIR:-"${XDG_CONFIG_HOME:-${HOME?}/.config}/asd"}"
+      ASDRUNDIR="${ASDRUNDIR:-"${XDG_RUNTIME_DIR:-/run/user/${EUID:-$(id -u)}}/asd"}"
+    fi
+  fi
+
+  if [[ -n "${NO_COLOR:-}" ]]; then
+    BLD=''
+    RED=''
+    GRN=''
+    BLU=''
+    NRM=''
+  else
+    BLD="\e[01m"
+    RED="\e[01;31m"
+    GRN="\e[01;32m"
+    BLU="\e[01;34m"
+    NRM="\e[00m"
+  fi
+
+  declare -gr BLD RED GRN BLU NRM
+
+  declare -gr VERS='@VERSION@'
+
+  declare -gr CRASH_RECOVERY_SUFFIX=crashrecovery
+  declare -gr ASDCONFTIMEOUT="${ASDCONFTIMEOUT:-10}"
+
+  ASDNAME=asd
+
+  umask 027
+
+  if use_v1_paths; then
+    ASDCONF="${ASDCONF:-/etc/asd.conf}"
+    DAEMON_FILE="${DAEMON_FILE:-/run/asd}"
+
+    if [[ "$ASDCONF" != /etc/asd.conf ]]; then
+      suffix="$(realpath "$ASDCONF" | sha256sum | cut -b -16)"
+      ASDNAME="${ASDNAME}-${suffix}"
+      if [[ "$DAEMON_FILE" == /run/asd ]]; then
+        DAEMON_FILE="/run/${ASDNAME}"
+      fi
+    fi
+
+    LOCKFILE="/run/${ASDNAME}-lock"
+  else
+    ASDCONF="${ASDCONF:-${ASDCONFDIR}/asd.conf}"
+    DAEMON_FILE="${DAEMON_FILE:-${ASDRUNDIR}/asd.run}"
+    LOCKFILE="${ASDRUNDIR}/asd.lock"
+
+    mkdir -p "$ASDRUNDIR"
+  fi
+
+  declare -gr ASDCONFDIR ASDNAME ASDRUNDIR DAEMON_FILE LOCKFILE
+
+  declare -gr ASDCONF_SOURCE="$ASDCONF"
+  declare -gr ASDCONF_SNAPSHOT="${DAEMON_FILE}.conf"
+
+  mkdir -p "$(dirname "$DAEMON_FILE")"
+  mkdir -p "$(dirname "$LOCKFILE")"
+}
+
+setup_late() {
+  debug "${RED}ASDNAME:${NRM} ${ASDNAME}"
+  debug "${BLU}Configuration file:${NRM} ${ASDCONF_SOURCE}"
+  debug "${GRN}Daemon file:${NRM} ${DAEMON_FILE}"
+  debug "${RED}Lockfile:${NRM} ${LOCKFILE}\n"
+
+  # Setup check /etc/asd.conf
+  debug "Checking for existence of ${ASDCONF_SOURCE}"
+  if [[ -f "$ASDCONF_SOURCE" ]]; then
+    debug "Checking if asd is already running"
+
+    if [[ -f "$DAEMON_FILE" ]]; then
+      debug "Daemon file found; asd is running"
+    else
+      debug "Daemon file not found; asd is not running"
+    fi
+  else
+    ediag " ${BLD}Cannot find ${ASDCONF_SOURCE} so bailing.${NRM}"
+    ediag " ${BLD}Reinstall package to use anything-sync-daemon.${NRM}"
+    return 1
+  fi
+
+  # if asd is active, source the snapshot of /etc/asd.conf preferentially
+  if [[ -f "$ASDCONF_SNAPSHOT" ]]; then
+    debug "\nRestoring old asd.conf configurations"
+  else
+    # make a snapshot of the current configuration on the tmpfs while asd is
+    # running to keep any edits made to the live `ASDCONF` from potentially
+    # orphaning the tmpfs copies thus preserving the data
+    mkdir -p "$(dirname "$ASDCONF_SNAPSHOT")"
+    ON_START="creating configuration snapshot at ${ASDCONF_SNAPSHOT}" \
+      verbosely serialize_conf_vars_with_timeout "$ASDCONF_SOURCE" > "$ASDCONF_SNAPSHOT" || {
+        rc="$?"
+        ediag -n "${BLD}Error creating configuration snapshot ${ASDCONF_SNAPSHOT} from configuration file ${ASDCONF_SOURCE}"
+        case "$rc" in
+          # Probably timed out.  124 is coreutils, 143 is busybox.
+          124|143)
+            diag -n " (sourcing ${ASDCONF_SNAPSHOT} appears to have timed out)"
+            ;;
+        esac
+        ediag "; cannot continue.${NRM}"
+        rm -f "$ASDCONF_SNAPSHOT"
+        return "$rc"
+      }
+  fi
+
+  readonly ASDCONF="$ASDCONF_SNAPSHOT"
+
+  # shellcheck source=./asd.conf source-path=SCRIPTDIR
+  source "$ASDCONF" || {
+    rc="$?"
+    ediag "${BLD}Error sourcing ${ASDCONF}; cannot continue.${NRM}"
+    rm -f "$ASDCONF_SNAPSHOT"
+    return "$rc"
+  }
+
+  debug # just for an additional enter
+
+  # define default number of crash-recovery snapshots to save if the user did not
+  # and check that it is an integer if user did define it
+  if ! [[ "${BACKUP_LIMIT:=5}" =~ ^[[:digit:]]+$ ]]; then
+    ediag " ${RED}ERROR:${NRM}${BLD} Bad value for BACKUP_LIMIT detected!${NRM}"
+    return 1
+  fi
+  debug "Backup limit: ${BACKUP_LIMIT}"
+
+  # saving current extended pattern matching setting
+  # command returns non zero exit code if the option is unset hence
+  # pipe with `:`
+  previous_extglob_setting="$(shopt -p extglob || :)"
+
+  # ensuring pattern matching is enabled
+  shopt -s extglob
+
+  # removing any trailing slash(es) from the list of directories to sync
+  # explicitly declare the variable in case it was unset in `ASDCONF`.
+  declare -ga WHATTOSYNC
+  WHATTOSYNC=("${WHATTOSYNC[@]%%+(/)}")
+
+  if [[ -z "${VOLATILE:-}" ]]; then
+    if use_v1_paths; then
+      VOLATILE=/tmp
+    else
+      VOLATILE="$ASDRUNDIR"
+    fi
+  fi
+
+  # removing any trailing slash(es) from the volatile directory
+  VOLATILE="${VOLATILE%%+(/)}"
+
+  # setting everything back
+  $previous_extglob_setting || :
+  unset previous_extglob_setting
+
+  debug "Volatile dir: ${VOLATILE}"
+
+  # bail if $VOLATILE isn't tmpfs
+  looks_like_tmpfs_or_zram_diag "$VOLATILE"
+
+  debug "Hardlink safety check: ${ENABLE_HARDLINK_SAFETY_CHECK:=1}"
+
+  # simple function to determine user intent rather than using a null value
+  if is_truthy "${USE_OVERLAYFS:-}"; then
+    OLFS=1
+  else
+    OLFS=0
+  fi
+
+  # since the default for this one is a yes, need to force a null value to yes
+  debug "Backups enabled: ${USE_BACKUPS:=yes}"
+
+  if is_truthy "$USE_BACKUPS"; then
+    CRRE=1
+  else
+    CRRE=0
+  fi
+
+  debug "Crash recovery enabled: $CRRE"
+
+  # determine is we are using overlayfs (v22 and below) or overlay (v23 and above)
+  # overlay FS v23 and later requires both an upper and a work directory, both on
+  # the same filesystem, but not part of the same subtree.
+  #
+  # ubuntu 15.04 has both overlay and overlayfs so prefer version 23
+  if [[ "$OLFS" = 1 ]]; then
+    # first test if either module is manually loaded manually or hardcoded
+    if grep -qiE "overlay$" /proc/filesystems 2>/dev/null; then
+      OLFSVER=23
+    elif grep -qiE "overlayfs$" /proc/filesystems 2>/dev/null; then
+      OLFSVER=22
+    # since mount should call modprobe on invocation, check to see if either
+    # module is in the tree using modinfo
+    elif modinfo overlay &>/dev/null; then
+      OLFSVER=23
+    elif modinfo overlayfs &>/dev/null; then
+      OLFSVER=22
+    else
+      diag "overlayfs is not supported by your system, falling back to normal."
+      OLFS=0
+    fi
+  fi
+
+  debug "overlayfs enabled: $OLFS"
+  debug "overlayfs version: ${OLFSVER:-unknown}"
+
+  # get distro name
+  # first try os-release
+  if [[ -f /etc/os-release ]]; then
+    # shellcheck source=/dev/null
+    source /etc/os-release 2>/dev/null || :
+    DISTRO="${PRETTY_NAME:-${NAME}}"
+  fi
+
+  # if not os-release try issue
+  DISTRO="${DISTRO:-$(sed -n '/./ { s| \\.*$||; p; q }' /etc/issue 2>/dev/null)}" || :
+
+  if [[ -z "$DISTRO" ]]; then
+    header() {
+      ediag "${BLD}Anything-sync-daemon v${VERS}${NRM}"
+      diag
+    }
+  else
+    header() {
+      ediag "${BLD}Anything-sync-daemon v${VERS}${NRM}${BLD} on ${DISTRO:-unknown distribution}${NRM}"
+      diag
+    }
+  fi
+
+  if need_sudo_to_mount; then
+    run_mount_helper() {
+      sudo asd-mount-helper "$@"
+    }
+  else
+    run_mount_helper() {
+      asd-mount-helper "$@"
+    }
+  fi
+
+  # Re-declare these globally, forbidding further modification.
+  declare -gr \
+    BACKUP_LIMIT="$BACKUP_LIMIT"  \
+    DEBUG="${DEBUG:-}"  \
+    ENABLE_HARDLINK_SAFETY_CHECK="$ENABLE_HARDLINK_SAFETY_CHECK" \
+    USE_BACKUPS="${USE_BACKUPS:-}" \
+    USE_OVERLAYFS="${USE_OVERLAYFS:-}" \
+    VOLATILE="$VOLATILE" \
+    CRRE="$CRRE" \
+    DISTRO="$DISTRO" \
+    OLFS="$OLFS" \
+    OLFSVER="${OLFSVER:-}"
+
+  declare -gar WHATTOSYNC=("${WHATTOSYNC[@]}")
+}
+
 main() {
+  setup_early || return
+
+  # shellcheck disable=SC2015
+  if [[ "${FLOCKER:-}" != "$0" ]]; then
+    ediag "${RED}Waiting for lock...${NRM}"
+    FLOCKER="$0" exec flock -x "$LOCKFILE" "$BASH" "-$-" "$0" "$@"
+  fi
+
+  setup_late || return
+
   case "${1:-}" in
     p|P|Parse|parse|Preview|preview|debug)
       header
