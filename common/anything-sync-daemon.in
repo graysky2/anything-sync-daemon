@@ -914,6 +914,11 @@ setup_late() {
   debug "${GRN}Daemon file:${NRM} ${DAEMON_FILE}"
   debug "${RED}Lockfile:${NRM} ${LOCKFILE}\n"
 
+  local systemd_unit_name
+  if systemd_unit_name="$(systemd_unit_name 2>/dev/null)" && [[ -n "$systemd_unit_name" ]]; then
+    debug "${BLU}Systemd unit name:${NRM} ${systemd_unit_name}"
+  fi
+
   # Setup check /etc/asd.conf
   debug "Checking for existence of ${ASDCONF_SOURCE}"
   if [[ -f "$ASDCONF_SOURCE" ]]; then
