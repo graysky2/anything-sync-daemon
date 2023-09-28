@@ -332,6 +332,10 @@ for_each_dir() {
   done
 }
 
+for_each_dir_with_crasharr() {
+  NEED_CRASHArr=1 for_each_dir "$@"
+}
+
 dep_check() {
   # Function is used to ensure all dependencies are installed
   debug "\n${BLU}Checking dependencies${NRM}"
@@ -543,7 +547,7 @@ cleanup() {
     diag
   }
 
-  NEED_CRASHArr=1 for_each_dir _cleanup
+  for_each_dir_with_crasharr _cleanup
 }
 
 enforce() {
@@ -564,7 +568,7 @@ enforce() {
     fi
   }
 
-  NEED_CRASHArr=1 for_each_dir _enforce
+  for_each_dir_with_crasharr _enforce
 }
 
 do_sync() {
@@ -797,7 +801,7 @@ parse() {
     fi
   }
 
-  NEED_CRASHArr=1 for_each_dir _parse
+  for_each_dir_with_crasharr _parse
 }
 
 configure_debugging() {
