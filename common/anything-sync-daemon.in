@@ -80,13 +80,41 @@ run_systemctl_user() {
   systemctl --user "$@"
 }
 
+systemd_unit_name() {
+  [[ -v INVOCATION_ID ]] || return
+
+  local id invocation_id
+  while read -r prop; do
+    case "$prop" in
+      InvocationID=*)
+        invocation_id="${prop#InvocationID=}"
+        ;;
+      Id=*)
+        id="${prop#Id=}"
+        ;;
+      *)
+        if [[ -v id ]] && [[ -v invocation_id ]] && [[ "$invocation_id" == "$INVOCATION_ID" ]]; then
+          printf -- '%s' "$id"
+          return
+        else
+          unset id invocation_id
+        fi
+        ;;
+    esac
+  done < <(run_systemctl show -p 'Id,InvocationID' '*')
+
+  return 1
+}
+
 looks_like_systemd_system() {
-  run_systemctl_system list-unit-files asd.service &>/dev/null \
+  systemd_unit_name &>/dev/null \
+    || run_systemctl_system list-unit-files asd.service &>/dev/null \
     || [[ -f /usr/lib/systemd/system/asd.service ]]
 }
 
 looks_like_systemd_user() {
-  run_systemctl_user list-unit-files asd.service &>/dev/null \
+  systemd_unit_name &>/dev/null \
+    || run_systemctl_user list-unit-files asd.service &>/dev/null \
     || [[ -f /usr/lib/systemd/user/asd.service ]]
 }
 
