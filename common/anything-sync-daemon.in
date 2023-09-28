@@ -800,15 +800,8 @@ parse() {
   NEED_CRASHArr=1 for_each_dir _parse
 }
 
-setup_early() {
-  declare -gr PS4='+ ${BASH_SOURCE:-${0}}@${LINENO:-0}${FUNCNAME:+#${FUNCNAME}()}: '
-
-  set -euo pipefail
-
-  trap 'diag_error "$LINENO"' ERR
-
-  # For debug, add DEBUG=1 asd
-  if [[ "${DEBUG:-}" = 1 ]]; then
+configure_debugging() {
+  if is_truthy "${DEBUG:-}"; then
     debug() {
       ediag "$@"
     }
@@ -817,6 +810,16 @@ setup_early() {
       :
     }
   fi
+}
+
+setup_early() {
+  declare -gr PS4='+ ${BASH_SOURCE:-${0}}@${LINENO:-0}${FUNCNAME:+#${FUNCNAME}()}: '
+
+  set -euo pipefail
+
+  trap 'diag_error "$LINENO"' ERR
+
+  configure_debugging
 
   debug "checking flock"
   have_dep_diag flock || return
@@ -973,6 +976,9 @@ setup_late() {
   }
 
   debug # just for an additional enter
+
+  # Redeclare `debug`; configuration file may have altered `DEBUG` definition
+  configure_debugging
 
   BACKUP_LIMIT_FINAL="${BACKUP_LIMIT:-5}"
   # define default number of crash-recovery snapshots to save if the user did not
