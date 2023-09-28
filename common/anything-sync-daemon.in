@@ -131,6 +131,9 @@ is_truthy() {
 }
 
 serialize_conf_vars() {
+  # These variables are meant to be declared in `asd.conf`, and we gracefully
+  # handle them being unset.
+  # shellcheck disable=SC2153
   declare -p \
     BACKUP_LIMIT  \
     DEBUG \
@@ -175,7 +178,7 @@ need_sudo_to_mount() {
 # Need `sudo` even when running as root in order to check directory ownership
 # in `asd-mount-helper`.
 need_sudo() {
-  [[ "${OLFS:-}" = 1 ]] || need_sudo_to_mount
+  use_overlayfs || need_sudo_to_mount
 }
 
 find_mount() {
@@ -247,7 +250,7 @@ sync_target_is_mounted() {
 
   # Don't bother checking whether overlays are mounted if we're not using
   # overlays.
-  [[ "${OLFS:-}" = 1 ]] || return
+  use_overlayfs || return
 
   mount_is_overlay "$tgt" || return
 
@@ -268,7 +271,7 @@ for_each_dir() {
   # command.  We don't need to export them, and it's not a problem if they
   # aren't used in the loop body.
   # shellcheck disable=SC2034
-  for DIR in "${WHATTOSYNC[@]}"; do
+  for DIR in "${WHATTOSYNC_FINAL[@]}"; do
     # did user define a real dir
     # this is the hdd bound backup in case of power failure
     if [[ ${DIR##*/} == .* ]]; then
@@ -284,9 +287,9 @@ for_each_dir() {
       DIR_USER="$(stat -c %U "$DIR" 2>/dev/null)" || :
       DIR_GROUP="$(id -gn "$DIR_USER" 2>/dev/null)" || :
 
-      local DIR_TMP="${VOLATILE}/${ASDNAME}-${DIR_USER}${DIR}"
-      local DIR_UPPER="${VOLATILE}/${ASDNAME}-${DIR_USER}${DIR}-rw"
-      local DIR_WORK="${VOLATILE}/.${ASDNAME}-${DIR_USER}${DIR}"
+      local DIR_TMP="${VOLATILE_FINAL}/${ASDNAME}-${DIR_USER}${DIR}"
+      local DIR_UPPER="${VOLATILE_FINAL}/${ASDNAME}-${DIR_USER}${DIR}-rw"
+      local DIR_WORK="${VOLATILE_FINAL}/.${ASDNAME}-${DIR_USER}${DIR}"
 
       local USER="$DIR_USER"
       local GROUP="$DIR_GROUP"
@@ -300,9 +303,9 @@ for_each_dir() {
       BACK_USER="$(stat -c %U "$BACKUP" 2>/dev/null)" || :
       BACK_GROUP="$(id -gn "$BACK_USER" 2>/dev/null)" || :
 
-      local BACK_TMP="${VOLATILE}/${ASDNAME}-${BACK_USER}${DIR}"
-      local BACK_UPPER="${VOLATILE}/${ASDNAME}-${BACK_USER}${DIR}-rw"
-      local BACK_WORK="${VOLATILE}/.${ASDNAME}-${BACK_USER}${DIR}"
+      local BACK_TMP="${VOLATILE_FINAL}/${ASDNAME}-${BACK_USER}${DIR}"
+      local BACK_UPPER="${VOLATILE_FINAL}/${ASDNAME}-${BACK_USER}${DIR}-rw"
+      local BACK_WORK="${VOLATILE_FINAL}/.${ASDNAME}-${BACK_USER}${DIR}"
 
       local USER="${USER:-${BACK_USER}}"
       local GROUP="${GROUP:-${BACK_GROUP}}"
@@ -348,7 +351,7 @@ dep_check() {
     have_dep_diag "$dep" || rc="$?"
   done
 
-  if [[ "${OLFS:-}" = 1 ]] && { [[ -z "$OLFSVER" ]] || (( OLFSVER < 22 )) ; }; then
+  if use_overlayfs && { [[ -z "$OVERLAYFS_VERS" ]] || (( OVERLAYFS_VERS < 22 )) ; }; then
     ediag " ${BLD}Your kernel requires either the ${BLU}overlay${NRM}${BLD} or ${BLU}overlayfs${NRM}${BLD} module to use${NRM}"
     ediag " ${BLD}to use asd's in overlay mode. Cannot find either in your kernel so compile it in and${NRM}"
     ediag " ${BLD}try again or remove the option from ${BLU}${ASDCONF}${NRM}${BLD}. ${RED}Aborting!${NRM}"
@@ -364,13 +367,13 @@ config_check() {
   local rc=0
 
   # nothing to do if these are empty
-  if ! [[ -v WHATTOSYNC ]] || (( "${#WHATTOSYNC[@]}" < 1 )); then
+  if ! [[ -v WHATTOSYNC_FINAL ]] || (( "${#WHATTOSYNC_FINAL[@]}" < 1 )); then
     ediag " ${BLD}Must define at least one directory in ${NRM}${BLU}${ASDCONF}${NRM}"
     rc=1
   fi
 
   local sudo_error
-  if [[ "${OLFS:-}" = 1 ]] && need_sudo_to_mount && ! sudo_error="$(sudo -kn asd-mount-helper 2>&1)"; then
+  if use_overlayfs && need_sudo_to_mount && ! sudo_error="$(sudo -kn asd-mount-helper 2>&1)"; then
     ediag " ${RED} ERROR!${NRM}${BLD} To use overlayfs mode, your user needs passwordless sudo access to ${BLU}asd-mount-helper${NRM}."
     ediag " ${BLD} Error was: ${sudo_error}${NRM}"
     rc=1
@@ -389,7 +392,7 @@ config_check() {
       fi
     else
       # sanity check for hardlinks
-      if ! [[ -d "$BACK_OLD" ]] && [[ "$ENABLE_HARDLINK_SAFETY_CHECK" != 0 ]]; then
+      if ! [[ -d "$BACK_OLD" ]] && enable_hardlink_safety_check; then
         local first_link
         if first_link="$(find "$DIR" -type f -links +1 -print -quit)" && [[ -n "$first_link" ]]; then
           ediag "${DIR}:\n${RED} Presence of hardlinks found, asd might break them:${NRM}"
@@ -448,7 +451,7 @@ ungraceful_state_check() {
         debug "Sync target ${DIR} is currently unmounted"
       fi
 
-      if [[ -d "$TMP" ]] && { [[ "$OLFS" = 0 ]] || mount_is_overlay "$TMP"; }; then
+      if [[ -d "$TMP" ]] && { ! use_overlayfs || mount_is_overlay "$TMP"; }; then
         debug "Temporary directory ${TMP} is currently present"
         tmp_is_mounted=1
       else
@@ -489,8 +492,8 @@ ungraceful_state_check() {
       fi
     fi
 
-    if [[ "$OLFS" = 1 ]] && [[ "${tmp_is_mounted:-}" = 1 ]]; then
-      if ON_START="unmounting overlay dirs" verbosely run_mount_helper -v "$OLFSVER" -l "$BACKUP" -u "$UPPER" -w "$WORK" -d "$TMP" mountdown; then
+    if use_overlayfs && [[ "${tmp_is_mounted:-}" = 1 ]]; then
+      if ON_START="unmounting overlay dirs" verbosely run_mount_helper -v "$OVERLAYFS_VERS" -l "$BACKUP" -u "$UPPER" -w "$WORK" -d "$TMP" mountdown; then
         rm -rf "$TMP" "$UPPER" "$WORK"
         debug "unmounted overlay dirs"
       else
@@ -499,7 +502,7 @@ ungraceful_state_check() {
     fi
 
     if [[ -d "${BACK_OLD?}" ]]; then
-      if [[ "$CRRE" = 1 ]]; then
+      if use_backups; then
         local BACK_NEW="${BACKUP}-${CRASH_RECOVERY_SUFFIX}-${NOW}.tar.zstd"
         debug "copying ${BACK_OLD} to ${BACK_NEW}"
         tar cf - -C "${BACK_OLD%/*}" "${BACK_OLD##*/}" | pv -s "$(du -sb "$BACK_OLD" | awk '{print $1}')" | zstd > "$BACK_NEW" || rc="$?"
@@ -549,15 +552,15 @@ enforce() {
   _enforce() {
     debug_vars DIR BACKUP
 
-    if (( "${#CRASHArr[@]}" > BACKUP_LIMIT )); then
-      debug "The backups are greater than ${BACKUP_LIMIT}"
+    if (( "${#CRASHArr[@]}" > BACKUP_LIMIT_FINAL )); then
+      debug "The backups are greater than ${BACKUP_LIMIT_FINAL}"
       local remove
-      for remove in "${CRASHArr[@]:$BACKUP_LIMIT}"; do
+      for remove in "${CRASHArr[@]:$BACKUP_LIMIT_FINAL}"; do
         debug "removing ${remove}"
         rm -rf "$remove"
       done
     else
-      debug "The backups are less than ${BACKUP_LIMIT}, nothing to do"
+      debug "The backups are less than ${BACKUP_LIMIT_FINAL}, nothing to do"
     fi
   }
 
@@ -585,14 +588,14 @@ do_sync() {
         verbosely install -dm"$PREFIXP" --owner="$USER" --group="$GROUP" "$BACKUP" || return
       fi
 
-      if [[ "$OLFS" = 1 ]]; then
+      if use_overlayfs; then
         debug "ensuring overlay directories"
 
         if ! [[ -r "$UPPER" ]]; then
           verbosely install -dm"$PREFIXP" --owner="$USER" --group="$GROUP" "$UPPER" || return
         fi
 
-        if [[ "$OLFSVER" = 23 ]]; then
+        if [[ "$OVERLAYFS_VERS" = 23 ]]; then
           if ! [[ -r "$WORK" ]]; then
             verbosely install -dm"$PREFIXP" --owner="$USER" --group="$GROUP" "$WORK" || return
           fi
@@ -610,7 +613,7 @@ do_sync() {
         # backup target and link to tmpfs container
         ON_START="Bind mounting ${DIR} -> ${BACKUP}" verbosely run_mount_helper -s "$DIR" -d "$BACKUP" mountupbind || return
 
-        if [[ "$CRRE" = 1 ]];then
+        if use_backups;then
           debug "Creating new linked backup directory ${BACK_OLD}"
           tempfile=$(mktemp)
 
@@ -628,8 +631,8 @@ do_sync() {
         fi
 
         # initial sync
-        if [[ "$OLFS" = 1 ]]; then
-          ON_START="Mounting overlay directory" verbosely run_mount_helper -v "$OLFSVER" -l "$BACKUP" -u "$UPPER" -w "$WORK" -d "$TMP" mountup || return
+        if use_overlayfs; then
+          ON_START="Mounting overlay directory" verbosely run_mount_helper -v "$OVERLAYFS_VERS" -l "$BACKUP" -u "$UPPER" -w "$WORK" -d "$TMP" mountup || return
         else
           debug "Doing initial sync with ${BACKUP} and ${TMP}"
           set -x
@@ -672,7 +675,7 @@ do_unsync() {
       debug "removing ${BACKUP}"
       rm -rf "$BACKUP"
 
-      if [[ "$OLFS" = 1 ]]; then
+      if use_overlayfs; then
         if mountpoint -q "$TMP"; then
           ON_START="unmounting $TMP" verbosely run_mount_helper -d "$TMP" mountdownlazy || return
 
@@ -684,7 +687,7 @@ do_unsync() {
         rm -rf "$TMP"
       fi
 
-      if [[ "$CRRE" = 1 ]]; then
+      if use_backups; then
         debug "removing $BACK_OLD"
         rm -rf "$BACK_OLD"
       fi
@@ -751,8 +754,8 @@ parse() {
     ediag " ${BLD}Resync cronjob is ${resync_color}${resync_state}${NRM}${BLD}.${NRM}"
   fi
 
-  if [[ "$OLFS" = 1 ]]; then
-    ediag "${BLD} OverlayFS v${OLFSVER} is currently ${GRN}active${NRM}${BLD}.${NRM}"
+  if use_overlayfs; then
+    ediag "${BLD} OverlayFS v${OVERLAYFS_VERS} is currently ${GRN}active${NRM}${BLD}.${NRM}"
   else
     ediag "${BLD} OverlayFS technology is currently ${RED}inactive${NRM}${BLD}.${NRM}"
   fi
@@ -773,7 +776,7 @@ parse() {
       psize="$(du -Dh --max-depth=0 "$DIR" 2>/dev/null | awk '{ print $1 }')" || :
       ediag " ${BLD}dir size:${justify}${psize:-unknown}${NRM}"
 
-      if [[ "$OLFS" = 1 ]]; then
+      if use_overlayfs; then
         rwsize=$(du -Dh --max-depth=0 "$UPPER" 2>/dev/null | awk '{ print $1 }')
         ediag " ${BLD}overlayfs size:${justify}${rwsize}${NRM}"
       fi
@@ -971,13 +974,14 @@ setup_late() {
 
   debug # just for an additional enter
 
+  BACKUP_LIMIT_FINAL="${BACKUP_LIMIT:-5}"
   # define default number of crash-recovery snapshots to save if the user did not
   # and check that it is an integer if user did define it
-  if ! [[ "${BACKUP_LIMIT:=5}" =~ ^[[:digit:]]+$ ]]; then
+  if ! [[ "$BACKUP_LIMIT_FINAL" =~ ^[[:digit:]]+$ ]]; then
     ediag " ${RED}ERROR:${NRM}${BLD} Bad value for BACKUP_LIMIT detected!${NRM}"
     return 1
   fi
-  debug "Backup limit: ${BACKUP_LIMIT}"
+  debug "Backup limit: ${BACKUP_LIMIT_FINAL}"
 
   # saving current extended pattern matching setting
   # command returns non zero exit code if the option is unset hence
@@ -988,75 +992,106 @@ setup_late() {
   shopt -s extglob
 
   # removing any trailing slash(es) from the list of directories to sync
-  # explicitly declare the variable in case it was unset in `ASDCONF`.
-  declare -ga WHATTOSYNC
-  WHATTOSYNC=("${WHATTOSYNC[@]%%+(/)}")
+  declare -ga WHATTOSYNC_FINAL=()
+  if [[ -v WHATTOSYNC ]]; then
+    WHATTOSYNC_FINAL=("${WHATTOSYNC[@]%%+(/)}")
+  fi
 
-  if [[ -z "${VOLATILE:-}" ]]; then
+  VOLATILE_FINAL="${VOLATILE:-}"
+  if [[ -z "${VOLATILE_FINAL:-}" ]]; then
     if use_v1_paths; then
-      VOLATILE=/tmp
+      VOLATILE_FINAL=/tmp
     else
-      VOLATILE="$ASDRUNDIR"
+      VOLATILE_FINAL="$ASDRUNDIR"
     fi
   fi
 
   # removing any trailing slash(es) from the volatile directory
-  VOLATILE="${VOLATILE%%+(/)}"
+  VOLATILE_FINAL="${VOLATILE_FINAL%%+(/)}"
 
   # setting everything back
   $previous_extglob_setting || :
   unset previous_extglob_setting
 
-  debug "Volatile dir: ${VOLATILE}"
+  debug "Volatile dir: ${VOLATILE_FINAL}"
 
   # bail if $VOLATILE isn't tmpfs
-  looks_like_tmpfs_or_zram_diag "$VOLATILE"
+  looks_like_tmpfs_or_zram_diag "$VOLATILE_FINAL"
 
-  debug "Hardlink safety check: ${ENABLE_HARDLINK_SAFETY_CHECK:=1}"
+  if is_truthy "${ENABLE_HARDLINK_SAFETY_CHECK:-1}"; then
+    debug "Hardlink safety check: yes"
+
+    enable_hardlink_safety_check() {
+      return 0
+    }
+  else
+    debug "Hardlink safety check: no"
+
+    enable_hardlink_safety_check() {
+      return 1
+    }
+  fi
+
 
   # simple function to determine user intent rather than using a null value
-  if is_truthy "${USE_OVERLAYFS:-}"; then
-    OLFS=1
+  if is_truthy "${USE_OVERLAYFS:-0}"; then
+    use_overlayfs() {
+      return 0
+    }
   else
-    OLFS=0
+    use_overlayfs() {
+      return 1
+    }
   fi
 
   # since the default for this one is a yes, need to force a null value to yes
-  debug "Backups enabled: ${USE_BACKUPS:=yes}"
+  if is_truthy "${USE_BACKUPS:-1}"; then
+    debug "Backups enabled: yes"
 
-  if is_truthy "$USE_BACKUPS"; then
-    CRRE=1
+    use_backups() {
+      return 0
+    }
   else
-    CRRE=0
-  fi
+    debug "Backups enabled: no"
 
-  debug "Crash recovery enabled: $CRRE"
+    use_backups() {
+      return 1
+    }
+  fi
 
   # determine is we are using overlayfs (v22 and below) or overlay (v23 and above)
   # overlay FS v23 and later requires both an upper and a work directory, both on
   # the same filesystem, but not part of the same subtree.
   #
   # ubuntu 15.04 has both overlay and overlayfs so prefer version 23
-  if [[ "$OLFS" = 1 ]]; then
+  if use_overlayfs; then
     # first test if either module is manually loaded manually or hardcoded
     if grep -qiE "overlay$" /proc/filesystems 2>/dev/null; then
-      OLFSVER=23
+      OVERLAYFS_VERS=23
     elif grep -qiE "overlayfs$" /proc/filesystems 2>/dev/null; then
-      OLFSVER=22
+      OVERLAYFS_VERS=22
     # since mount should call modprobe on invocation, check to see if either
     # module is in the tree using modinfo
     elif modinfo overlay &>/dev/null; then
-      OLFSVER=23
+      OVERLAYFS_VERS=23
     elif modinfo overlayfs &>/dev/null; then
-      OLFSVER=22
+      OVERLAYFS_VERS=22
     else
       diag "overlayfs is not supported by your system, falling back to normal."
-      OLFS=0
+
+      use_overlayfs() {
+        return 1
+      }
     fi
   fi
 
-  debug "overlayfs enabled: $OLFS"
-  debug "overlayfs version: ${OLFSVER:-unknown}"
+  if use_overlayfs; then
+    debug "overlayfs enabled: yes"
+  else
+    debug "overlayfs enabled: no"
+  fi
+
+  debug "overlayfs version: ${OVERLAYFS_VERS:-unknown}"
 
   # get distro name
   # first try os-release
@@ -1093,18 +1128,12 @@ setup_late() {
 
   # Re-declare these globally, forbidding further modification.
   declare -gr \
-    BACKUP_LIMIT="$BACKUP_LIMIT"  \
-    DEBUG="${DEBUG:-}"  \
-    ENABLE_HARDLINK_SAFETY_CHECK="$ENABLE_HARDLINK_SAFETY_CHECK" \
-    USE_BACKUPS="${USE_BACKUPS:-}" \
-    USE_OVERLAYFS="${USE_OVERLAYFS:-}" \
-    VOLATILE="$VOLATILE" \
-    CRRE="$CRRE" \
     DISTRO="$DISTRO" \
-    OLFS="$OLFS" \
-    OLFSVER="${OLFSVER:-}"
+    OVERLAYFS_VERS="${OVERLAYFS_VERS:-}" \
+    BACKUP_LIMIT_FINAL="$BACKUP_LIMIT_FINAL"  \
+    VOLATILE_FINAL="$VOLATILE_FINAL"
 
-  declare -gar WHATTOSYNC=("${WHATTOSYNC[@]}")
+  declare -gar WHATTOSYNC_FINAL=("${WHATTOSYNC_FINAL[@]}")
 }
 
 main() {
