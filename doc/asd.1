@@ -93,13 +93,16 @@ snapshots.
 \f[V]BACKUP_LIMIT\f[R]
 An unsigned integer defining the number of crash-recovery snapshots to
 keep.
+.TP
+\f[V]DEBUG\f[R]
+A boolean variable controlling whether to issue debugging output.
 .PP
 \f[B]Note\f[R] that the default value of \f[V]/tmp\f[R] should work just
 fine for the \f[V]VOLATILE\f[R] setting.
-If using bleachbit, do NOT invoke it with the
-\f[V]--clean system.tmp\f[R] switch or you will remove a key dot file
-(\f[V].foo\f[R]) from \f[V]/tmp\f[R] that \f[V]asd\f[R] needs to keep
-track of sync status.
+If using \f[V]bleachbit\f[R] (https://www.bleachbit.org/), do NOT invoke
+it with the \f[V]--clean system.tmp\f[R] switch or you will remove a key
+dot file (\f[V].foo\f[R]) from \f[V]/tmp\f[R] that \f[V]asd\f[R] needs
+to keep track of sync status.
 Also note that using a value of \f[V]/dev/shm\f[R] can cause problems
 with systemd\[cq]s \f[V]NAMESPACE\f[R] spawning only when users enable
 the OverlayFS option.
@@ -124,6 +127,59 @@ WHATTOSYNC=(
 \f[R]
 .fi
 .SH RUNNING ASD
+.SS ENVIRONMENT VARIABLES
+.PP
+\f[V]asd\f[R] recognizes the following environment variables:
+.TP
+\f[V]ASDCONF\f[R]
+Path to the \f[V]asd\f[R] configuration file.
+Defaults to \f[V]/etc/asd.conf\f[R] when \f[V]ASDNOV1PATHS\f[R] is
+disabled; otherwise, defaults to \f[V]${ASDCONFDIR}/asd.conf\f[R].
+.TP
+\f[V]ASDNOV1PATHS\f[R]
+A boolean variable controlling whether to use \[lq]version 1\[rq] paths
+or not.
+When set to a false value, \f[B]FIXME\f[R].
+\f[B]NOTE\f[R] that this variable is ignored when \f[V]asd\f[R] is
+running as a non-\f[V]root\f[R] user.
+Defaults to disabled (effectively, \f[V]ASDNOV1PATHS=0\f[R]).
+.TP
+\f[V]ASDCONFDIR\f[R]
+Parent directory of \f[V]asd.conf\f[R] if \f[V]ASDCONF\f[R] is not
+defined.
+Ignored when running as \f[V]root\f[R] and \f[V]ASDNOV1PATHS\f[R] is set
+to a false value.
+Otherwise, defaults to \f[V]CONFIGURATION_DIRECTORY\f[R] (which is set
+when \f[V]asd\f[R] runs under systemd), falling back to
+\f[V]/etc/asd\f[R] when running as \f[V]root\f[R] and
+\f[V]${XDG_CONFIG_DIR}/asd\f[R] when running as a non-\f[V]root\f[R]
+user.
+.TP
+\f[V]ASDRUNDIR\f[R]
+Directory where \f[V]asd\f[R] should store runtime state.
+Ignored when running as \f[V]root\f[R] and \f[V]ASDNOV1PATHS\f[R] is set
+to a false value.
+Otherwise, defaults to \f[V]RUNTIME_DIRECTORY\f[R] (which is set when
+\f[V]asd\f[R] runs under systemd), falling back to \f[V]/run/asd\f[R]
+when running as \f[V]root\f[R] and \f[V]${XDG_RUNTIME_DIR}/asd\f[R] when
+running as a non-\f[V]root\f[R] user.
+.TP
+\f[V]ASDCONFTIMEOUT\f[R]
+\f[V]asd\f[R] enforces a limit on how long it takes to load
+\f[V]asd.conf\f[R].
+By default, that limit is 10 seconds.
+You may influence this timeout by setting \f[V]ASDCONFTIMEOUT\f[R] to a
+duration expression recognized by your system\[cq]s implementation of
+the \f[V]timeout\f[R] command.
+For instance, you could set \f[V]ASDCONFTIMEOUT=30\f[R] to allow
+\f[V]asd.conf\f[R] loading to take 30 seconds, or set
+\f[V]ASDCONFTIMEOUT=1m\f[R] to allow one minute.
+.PP
+\f[B]Note\f[R] that, with the exception of \f[V]WHATTOSYNC\f[R], all
+variables recognized in \f[V]asd.conf\f[R] can be specified as
+environment variables.
+However, these environment variables will be overridden if there are any
+conflicting definitions in \f[V]asd.conf\f[R].
 .SS PREVIEW MODE
 .PP
 The preview option can be called to show users exactly what
