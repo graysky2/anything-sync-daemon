@@ -2,6 +2,7 @@
 
 [OverlayFS]: https://en.wikipedia.org/wiki/OverlayFS
 [`rsync`]: https://github.com/WayneD/rsync
+[BleachBit]: https://www.bleachbit.org/
 
 # NAME
 
@@ -75,11 +76,11 @@ In the `asd` configuration file, you may define the following variables:
 : An unsigned integer defining the number of crash-recovery snapshots to keep.
 
 **Note** that the default value of `/tmp` should work just fine for the
-`VOLATILE` setting.  If using bleachbit, do NOT invoke it with the `--clean
-system.tmp` switch or you will remove a key dot file (`.foo`) from `/tmp` that
-`asd` needs to keep track of sync status.  Also note that using a value of
-`/dev/shm` can cause problems with systemd's `NAMESPACE` spawning only when
-users enable the OverlayFS option.
+`VOLATILE` setting.  If using [`bleachbit`][BleachBit], do NOT invoke it with
+the `--clean system.tmp` switch or you will remove a key dot file (`.foo`) from
+`/tmp` that `asd` needs to keep track of sync status.  Also note that using a
+value of `/dev/shm` can cause problems with systemd's `NAMESPACE` spawning only
+when users enable the OverlayFS option.
 
 Example:
 
