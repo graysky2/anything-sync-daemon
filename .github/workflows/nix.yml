@@ -7,11 +7,32 @@ on:
 jobs:
   nix:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        system:
+          - x86_64-linux
+        check:
+          - treefmt
+          - docs
+          - anything-sync-daemon
     steps:
-      - uses: actions/checkout@v4
-      - uses: cachix/install-nix-action@v23
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Install Nix
+        uses: nixbuild/nix-quick-install-action@v25
         with:
-          extra_nix_config: |
+          nix_conf: |
             system-features = benchmark big-parallel kvm nixos-test
-      - name: run flake checks
-        run: nix flake check -L
+            keep-derivations = true
+            keep-outputs = true
+      - name: Restore and cache Nix store
+        uses: nix-community/cache-nix-action@v4
+        with:
+          key: "cache-${{ matrix.system }}-${{ hashFiles('**/*.nix', 'flake.lock') }}"
+          restore-keys: |
+            cache-${{ matrix.system }}-
+          purge-caches: true
+          purge-created: true
+          purge-key: "cache-${{ matrix.system }}-"
+      - name: Run flake check
+        run: "nix build -L '.#checks.${{ matrix.system }}.${{ matrix.check }}'"
