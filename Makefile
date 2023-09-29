@@ -60,6 +60,7 @@ install-bin: stop-asd disable-systemd common/$(PN)
 	$(INSTALL_PROGRAM) common/$(PN) "$(DESTDIR)$(BINDIR)/$(PN)"
 	$(INSTALL_PROGRAM) common/asd-mount-helper "$(DESTDIR)$(BINDIR)/asd-mount-helper"
 	ln -sf $(PN) "$(DESTDIR)$(BINDIR)/asd"
+	$(INSTALL_DIR) "$(DESTDIR)$(CONFDIR)"
 	cp -n common/asd.conf "$(DESTDIR)$(CONFDIR)/asd.conf"
 	$(INSTALL_DIR) "$(DESTDIR)$(ZSHDIR)"
 	$(INSTALL_DATA) common/zsh-completion "$(DESTDIR)/$(ZSHDIR)/_asd"
