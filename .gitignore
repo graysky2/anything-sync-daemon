@@ -1,3 +1,6 @@
+# Script rendered from `common/anything-sync-daemon.in`
+common/anything-sync-daemon
+
 # `nix build` and friends' output links
 result
 result-*
