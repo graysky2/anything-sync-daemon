@@ -47,3 +47,10 @@ USE A DISTRO PROVIDED PACKAGE
  CHAKRA
  Chakra users may build the package directly with the provided PKGBUILD:
  http://chakraos.org/ccr/packages.php?ID=3750
+
+ NIX/NIXOS
+ anything-sync-daemon provides a Nix flake,
+ `github:graysky2/anything-sync-daemon`.  This flake's outputs include the
+ `anything-sync-daemon` package (`packages.<system>.anything-sync-daemon`) and
+ the `anything-sync-daemon` NixOS module (`nixosModules.anything-sync-daemon`).
+ See `doc/nixos-modules.md` for available options.
