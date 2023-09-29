@@ -111,6 +111,11 @@
             configFile = mkOption {
               type = types.path;
               readOnly = true;
+              description = ''
+                The generated {command}`anything-sync-daemon` configuration
+                file used as {env}`ASDCONF` in the generated
+                {command}`anything-sync-daemon` services.
+              '';
               default =
                 pkgs.writers.makeScriptWriter {
                   interpreter = "${pkgs.bash}/bin/bash";
