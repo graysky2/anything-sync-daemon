@@ -7,6 +7,7 @@
   }: {
     checks = {
       default = config.checks.anything-sync-daemon;
+
       anything-sync-daemon = pkgs.testers.nixosTest {
         name = "anything-sync-daemon";
 
@@ -167,6 +168,24 @@
             asd.wait_until_succeeds('sudo -u ${user} env BACKUP_LIMIT=${toString nodes.asd.services.asd.system.backupLimit} ${./check.sh} crash')
         '';
       };
+
+      docs =
+        pkgs.runCommand "anything-sync-daemon-docs-check" {
+          src = self;
+        } ''
+          current="''${src}/doc/nixos-modules.md"
+          target=${config.packages.docs}
+
+          if ! [ -f "$current" ]; then
+            printf 1>&2 -- 'missing "%s"; please generate documentation with `mkoptdocs`.\n' "$current"
+            exit 1
+          elif ! ${pkgs.diffutils}/bin/cmp "$current" "$target"; then
+            printf 1>&2 -- '"%s" and "%s" differ; please generate documentation with `mkoptdocs`.\n' "$current" "$target"
+            exit 1
+          else
+            touch "$out"
+          fi
+        '';
     };
   };
 }
