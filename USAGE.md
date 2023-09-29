@@ -104,6 +104,54 @@ WHATTOSYNC=(
 
 # RUNNING ASD
 
+## ENVIRONMENT VARIABLES
+
+`asd` recognizes the following environment variables:
+
+`ASDCONF`
+
+: Path to the `asd` configuration file.  Defaults to `/etc/asd.conf` when
+  `ASDNOV1PATHS` is disabled; otherwise, defaults to `${ASDCONFDIR}/asd.conf`.
+
+`ASDNOV1PATHS`
+
+: A boolean variable controlling whether to use "version 1" paths or not.  When
+  set to a false value, `asd` will use old-style defaults for its daemon file
+  (`/run/asd`), lock file (`/run/asd-lock`), configuration file
+  (`/etc/asd.conf`)  .  **NOTE** that this variable is
+  ignored when `asd` is running as a non-`root` user.  Defaults to disabled
+  (effectively, `ASDNOV1PATHS=0`).
+
+`ASDCONFDIR`
+
+: Parent directory of `asd.conf` if `ASDCONF` is not defined.  Ignored when
+  running as `root` and `ASDNOV1PATHS` is unset or set to a false value.
+  Otherwise, defaults to `CONFIGURATION_DIRECTORY` (which is set when `asd`
+  runs under systemd), falling back to `/etc/asd` when running as `root` and
+  `${XDG_CONFIG_DIR}/asd` when running as a non-`root` user.
+
+`ASDRUNDIR`
+
+: Directory where `asd` should store runtime state.  Ignored when running as
+  `root` and `ASDNOV1PATHS` is unset or set to a false value.  Otherwise,
+  defaults to `RUNTIME_DIRECTORY` (which is set when `asd` runs under systemd),
+  falling back to `/run/asd` when running as `root` and
+  `${XDG_RUNTIME_DIR}/asd` when running as a non-`root` user.
+
+`ASDCONFTIMEOUT`
+
+: `asd` enforces a limit on how long it takes to load `asd.conf`.  By default,
+  that limit is 10 seconds.  You may influence this timeout by setting
+  `ASDCONFTIMEOUT` to a duration expression recognized by your system's
+  implementation of the `timeout` command.  For instance, you could set
+  `ASDCONFTIMEOUT=30` to allow `asd.conf` loading to take 30 seconds, or set
+  `ASDCONFTIMEOUT=1m` to allow one minute.
+
+**Note** that, with the exception of `WHATTOSYNC`, all [variables recognized in
+`asd.conf`](#setup) can be specified as environment variables.  However, these
+environment variables will be overridden if there are any conflicting
+definitions in `asd.conf`.
+
 ## PREVIEW MODE
 
 The preview option can be called to show users exactly what `asd` will do/is
