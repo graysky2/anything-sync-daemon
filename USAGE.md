@@ -75,6 +75,10 @@ In the `asd` configuration file, you may define the following variables:
 
 : An unsigned integer defining the number of crash-recovery snapshots to keep.
 
+`DEBUG`
+
+: A boolean variable controlling whether to issue debugging output.
+
 **Note** that the default value of `/tmp` should work just fine for the
 `VOLATILE` setting.  If using [`bleachbit`][BleachBit], do NOT invoke it with
 the `--clean system.tmp` switch or you will remove a key dot file (`.foo`) from
