@@ -29,6 +29,7 @@
         };
 
       devshell = {
+        packages = with pkgs; [gnumake gzip];
         packagesFrom = [config.packages.anything-sync-daemon];
       };
     };
