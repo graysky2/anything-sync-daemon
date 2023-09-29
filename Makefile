@@ -72,7 +72,7 @@ install-man: doc/asd.1
 	$(INSTALL_DIR) "$(DESTDIR)$(MANDIR)"
 	$(INSTALL_DATA) doc/asd.1 "$(DESTDIR)$(MANDIR)/asd.1"
 ifneq ($(COMPRESS_MAN),0)
-	gzip -9 "$(DESTDIR)$(MANDIR)/asd.1"
+	gzip -f -9 "$(DESTDIR)$(MANDIR)/asd.1"
 	ln -sf asd.1.gz "$(DESTDIR)$(MANDIR)/$(PN).1.gz"
 else
 	ln -sf asd.1 "$(DESTDIR)$(MANDIR)/$(PN).1"
