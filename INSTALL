@@ -1,8 +1,16 @@
 DEPENDENCIES
+ awk
  bash >=4.0
+ coreutils or busybox
  cron (only if using upstart)
  find
+ grep
+ procps (procps-ng)
+ pv
  rsync
+ tar
+ utillinux
+ zstd
 
  a supported init system
  -systemd
