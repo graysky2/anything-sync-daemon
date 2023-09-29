@@ -5,6 +5,8 @@ PREFIX ?= /usr
 CONFDIR = /etc
 CRONDIR = /etc/cron.hourly
 INITDIR_SYSTEMD = /usr/lib/systemd/system
+INITDIR_SYSTEMD_SYSTEM = $(INITDIR_SYSTEMD)
+INITDIR_SYSTEMD_USER = $(dir $(INITDIR_SYSTEMD))/user
 INITDIR_UPSTART = /etc/init.d
 BINDIR = $(PREFIX)/bin
 DOCDIR = $(PREFIX)/share/doc/$(PN)
@@ -76,10 +78,14 @@ install-cron:
 install-systemd:
 	$(Q)echo -e '\033[1;32mInstalling systemd files...\033[0m'
 	$(INSTALL_DIR) "$(DESTDIR)$(CONFDIR)"
-	$(INSTALL_DIR) "$(DESTDIR)$(INITDIR_SYSTEMD)"
-	$(INSTALL_DATA) init/asd.service "$(DESTDIR)$(INITDIR_SYSTEMD)/asd.service"
-	$(INSTALL_DATA) init/asd-resync.service "$(DESTDIR)$(INITDIR_SYSTEMD)/asd-resync.service"
-	$(INSTALL_DATA) init/asd-resync.timer "$(DESTDIR)$(INITDIR_SYSTEMD)/asd-resync.timer"
+	$(INSTALL_DIR) "$(DESTDIR)$(INITDIR_SYSTEMD_SYSTEM)"
+	$(INSTALL_DATA) init/asd.service "$(DESTDIR)$(INITDIR_SYSTEMD_SYSTEM)/asd.service"
+	$(INSTALL_DATA) init/asd-resync.service "$(DESTDIR)$(INITDIR_SYSTEMD_SYSTEM)/asd-resync.service"
+	$(INSTALL_DATA) init/asd-resync.timer "$(DESTDIR)$(INITDIR_SYSTEMD_SYSTEM)/asd-resync.timer"
+	$(INSTALL_DIR) "$(DESTDIR)$(INITDIR_SYSTEMD_USER)"
+	$(INSTALL_DATA) init/asd.service "$(DESTDIR)$(INITDIR_SYSTEMD_USER)/asd.service"
+	$(INSTALL_DATA) init/asd-resync.service "$(DESTDIR)$(INITDIR_SYSTEMD_USER)/asd-resync.service"
+	$(INSTALL_DATA) init/asd-resync.timer "$(DESTDIR)$(INITDIR_SYSTEMD_USER)/asd-resync.timer"
 
 install-upstart:
 	$(Q)echo -e '\033[1;32mInstalling upstart files...\033[0m'
@@ -117,9 +123,12 @@ uninstall-cron:
 
 uninstall-systemd:
 	$(RM) "$(DESTDIR)$(CONFDIR)/asd.conf"
-	$(RM) "$(DESTDIR)$(INITDIR_SYSTEMD)/asd.service"
-	$(RM) "$(DESTDIR)$(INITDIR_SYSTEMD)/asd-resync.service"
-	$(RM) "$(DESTDIR)$(INITDIR_SYSTEMD)/asd-resync.timer"
+	$(RM) "$(DESTDIR)$(INITDIR_SYSTEMD_SYSTEM)/asd.service"
+	$(RM) "$(DESTDIR)$(INITDIR_SYSTEMD_SYSTEM)/asd-resync.service"
+	$(RM) "$(DESTDIR)$(INITDIR_SYSTEMD_SYSTEM)/asd-resync.timer"
+	$(RM) "$(DESTDIR)$(INITDIR_SYSTEMD_USER)/asd.service"
+	$(RM) "$(DESTDIR)$(INITDIR_SYSTEMD_USER)/asd-resync.service"
+	$(RM) "$(DESTDIR)$(INITDIR_SYSTEMD_USER)/asd-resync.timer"
 
 uninstall-upstart:
 	$(RM) "$(DESTDIR)$(CONFDIR)/asd.conf"
