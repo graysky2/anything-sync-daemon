@@ -17,6 +17,9 @@ BSHDIR = $(PREFIX)/share/bash-completion/completions
 # set to anything except 0 to enable manpage compression
 COMPRESS_MAN = 1
 
+# set to 1 to prevent attempting to stop asd before installation
+SKIP_STOP = 0
+
 PANDOC = pandoc
 RM = rm
 SED = sed
@@ -38,13 +41,17 @@ doc/asd.1: USAGE.md
 help: install
 
 stop-asd:
+ifneq ($(SKIP_STOP),1)
 ifneq ($(PREFIX), /usr)
 	sudo -E asd unsync
 endif
+endif
 
 disable-systemd:
+ifneq ($(SKIP_STOP),1)
 ifeq ($(PREFIX), /usr)
-	systemctl stop asd asd-resync || /bin/true
+	systemctl stop asd asd-resync || :
+endif
 endif
 
 install-bin: stop-asd disable-systemd common/$(PN)
