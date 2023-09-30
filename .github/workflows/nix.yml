@@ -46,5 +46,14 @@ jobs:
           purge-caches: true
           purge-created: true
           purge-key: "cache-${{ matrix.system }}-"
+      # Build the test driver for debugging purposes.  To run the driver, enter
+      # the `act` container (`docker exec act-<...> bash`) and execute
+      # `./driver/bin/nixos-test-driver -I`.
+      - name: Build NixOS test driver
+        # Only build when running locally.
+        # https://github.com/nektos/act#skipping-steps
+        if: "${{ env.ACT }}"
+        # Not all checks have a `driver` attribute; ignore errors.
+        run: "nix build -o driver -L '.#checks.${{ matrix.system }}.${{ matrix.check }}.driver' 2>/dev/null || :"
       - name: Run flake check
         run: "nix build -L '.#checks.${{ matrix.system }}.${{ matrix.check }}'"
