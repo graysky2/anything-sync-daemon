@@ -35,6 +35,9 @@ jobs:
           # https://github.com/nixbuild/nix-quick-install-action/blob/d96491740839e162d9448daa5446f14dd88a52b2/read-nix-config-from-flake.sh#L17-L29
           flake_file: "${{ github.workspace }}/flake.nix"
       - name: Restore and cache Nix store
+        # Don't restore/cache when running locally.
+        # https://github.com/nektos/act#skipping-steps
+        if: "${{ !env.ACT }}"
         uses: nix-community/cache-nix-action@v4
         with:
           key: "cache-${{ matrix.system }}-${{ hashFiles('**/*.nix', 'flake.lock') }}"
