@@ -33,8 +33,6 @@
             asd.start_job('asd.service')
             asd.wait_for_unit('asd.service')
 
-          asd.wait_for_unit('multi-user.target')
-
           # Ensure user session doesn't end when user logs out
           asd.succeed("loginctl enable-linger ${user}")
 
