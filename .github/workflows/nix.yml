@@ -21,10 +21,13 @@ jobs:
       - name: Install Nix
         uses: nixbuild/nix-quick-install-action@v25
         with:
+          # Empty `build-users-group` definition required in order to test this
+          # under `act`, at least when using "medium size" images.
           nix_conf: |
             system-features = benchmark big-parallel kvm nixos-test
             keep-derivations = true
             keep-outputs = true
+            build-users-group =
       - name: Restore and cache Nix store
         uses: nix-community/cache-nix-action@v4
         with:
