@@ -14,6 +14,13 @@
       commands =
         [
           {
+            # Local GitHub Actions runner.  Run the `nix` job with `act -j
+            # nix`.
+            category = "testing";
+            package = pkgs.act;
+          }
+
+          {
             name = "fmt";
             category = "linting";
             help = "Lint and format this project's shell and Nix code";
