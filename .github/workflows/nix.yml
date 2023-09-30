@@ -28,6 +28,12 @@ jobs:
             keep-derivations = true
             keep-outputs = true
             build-users-group =
+        env:
+          # Don't bother using `gh` to fetch `flake.nix`, as it's (a)
+          # unnecessary and (b) problematic when running under `act` (`gh`
+          # bails out, saying that login is required).
+          # https://github.com/nixbuild/nix-quick-install-action/blob/d96491740839e162d9448daa5446f14dd88a52b2/read-nix-config-from-flake.sh#L17-L29
+          flake_file: "${{ github.workspace }}/flake.nix"
       - name: Restore and cache Nix store
         uses: nix-community/cache-nix-action@v4
         with:
