@@ -72,7 +72,16 @@
                 storage.  Will be injected into the
                 {command}`anything-sync-daemon` configuration file as the
                 value of the {env}`WHATTOSYNC` array variable.
+
+                **Note** that the {command}`anything-sync-daemon`
+                configuration file is a Bash script.  Please ensure that you
+                appropriately shell-quote entries in the {option}`whatToSync`
+                list.
               '';
+              example = [
+                "\"\${XDG_CACHE_HOME}/something-or-other\""
+                "~/.stuff"
+              ];
             };
 
             backupLimit = mkOption {
@@ -128,7 +137,7 @@
                   USE_OVERLAYFS=${lib.escapeShellArg config.useOverlayFS}
 
                   WHATTOSYNC=(
-                    ${lib.escapeShellArgs config.whatToSync}
+                    ${toString config.whatToSync}
                   )
 
                   ${config.extraConfig}

@@ -294,6 +294,11 @@ storage\.  Will be injected into the
 ` anything-sync-daemon ` configuration file as the
 value of the ` WHATTOSYNC ` array variable\.
 
+**Note** that the ` anything-sync-daemon `
+configuration file is a Bash script\.  Please ensure that you
+appropriately shell-quote entries in the ` whatToSync `
+list\.
+
 
 
 *Type:*
@@ -303,6 +308,17 @@ list of path
 
 *Default:*
 ` [ ] `
+
+
+
+*Example:*
+
+```
+[
+  "\"\${XDG_CACHE_HOME}/something-or-other\""
+  "~/.stuff"
+]
+```
 
 *Declared by:*
  - [nix/nixos-modules\.nix](/nix/nixos-modules.nix)
@@ -534,6 +550,11 @@ storage\.  Will be injected into the
 ` anything-sync-daemon ` configuration file as the
 value of the ` WHATTOSYNC ` array variable\.
 
+**Note** that the ` anything-sync-daemon `
+configuration file is a Bash script\.  Please ensure that you
+appropriately shell-quote entries in the ` whatToSync `
+list\.
+
 
 
 *Type:*
@@ -543,6 +564,17 @@ list of path
 
 *Default:*
 ` [ ] `
+
+
+
+*Example:*
+
+```
+[
+  "\"\${XDG_CACHE_HOME}/something-or-other\""
+  "~/.stuff"
+]
+```
 
 *Declared by:*
  - [nix/nixos-modules\.nix](/nix/nixos-modules.nix)
