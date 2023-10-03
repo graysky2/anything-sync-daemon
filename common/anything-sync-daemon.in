@@ -863,6 +863,25 @@ setup_early() {
     fi
   fi
 
+  local root_path_trust_me=//././//./
+  if have_dep realpath && [[ "$(realpath -m "$root_path_trust_me" 2>/dev/null)" = / ]]; then
+    clean_path() {
+      realpath -m "${1?}"
+    }
+  elif have_dep readlink && [[ "$(readlink -m "$root_path_trust_me" 2>/dev/null)" = / ]]; then
+    clean_path() {
+      readlink -m "${1?}"
+    }
+  else
+    # Mind the parentheses!  This function runs in a subshell to avoid
+    # clobbering the `extglob` setting in the "parent" shell.
+    clean_path() (
+      # ensuring pattern matching is enabled
+      shopt -s extglob
+      printf -- '%s' "${1%%+(/)}"
+    )
+  fi
+
   if [[ -n "${NO_COLOR:-}" ]]; then
     BLD=''
     RED=''
@@ -993,18 +1012,13 @@ setup_late() {
   fi
   debug "Backup limit: ${BACKUP_LIMIT_FINAL}"
 
-  # saving current extended pattern matching setting
-  # command returns non zero exit code if the option is unset hence
-  # pipe with `:`
-  previous_extglob_setting="$(shopt -p extglob || :)"
-
-  # ensuring pattern matching is enabled
-  shopt -s extglob
-
   # removing any trailing slash(es) from the list of directories to sync
   declare -ga WHATTOSYNC_FINAL=()
   if [[ -v WHATTOSYNC ]]; then
-    WHATTOSYNC_FINAL=("${WHATTOSYNC[@]%%+(/)}")
+    local whattosync_entry
+    for whattosync_entry in "${WHATTOSYNC[@]}"; do
+      WHATTOSYNC_FINAL+=("$(clean_path "$whattosync_entry")")
+    done
   fi
 
   VOLATILE_FINAL="${VOLATILE:-}"
@@ -1016,12 +1030,8 @@ setup_late() {
     fi
   fi
 
-  # removing any trailing slash(es) from the volatile directory
-  VOLATILE_FINAL="${VOLATILE_FINAL%%+(/)}"
-
-  # setting everything back
-  $previous_extglob_setting || :
-  unset previous_extglob_setting
+  # clean up the volatile directory name (no trailing slashes, etc.)
+  VOLATILE_FINAL="$(clean_path "$VOLATILE_FINAL")"
 
   debug "Volatile dir: ${VOLATILE_FINAL}"
 
