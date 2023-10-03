@@ -114,7 +114,7 @@
 
             cases = {
               'umountb': 'Sync target.*is currently unmounted',
-              'umountv': 'Temporary directory.*is currently absent',
+              'umountv': 'Temporary directory.*is currently unmounted',
               'umountx': 'Backup directory.*is currently unmounted',
             }
 

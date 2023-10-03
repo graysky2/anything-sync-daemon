@@ -489,6 +489,8 @@ ungraceful_state_check() {
     if [[ -d "$BACKUP" ]] && bind_mount_has_expected_source "$DIR" "$BACKUP"; then
       debug "Backup directory ${BACKUP} is currently mounted"
       backup_is_mounted=1
+    elif mountpoint -q "$BACKUP"; then
+      ediag "${YLW}WARNING:${NRM} backup directory ${BACKUP} is a mountpoint, but does not appear to be a bind-mount of sync target ${DIR}; this may be a bug in ${ASDNAME}"
     else
       debug "Backup directory ${BACKUP} is currently unmounted"
     fi
@@ -497,13 +499,26 @@ ungraceful_state_check() {
       if [[ -d "$DIR" ]] && sync_target_is_mounted "$TMP" "$DIR"; then
         debug "Sync target ${DIR} is currently mounted"
         dir_is_mounted=1
+      elif mountpoint -q "$DIR"; then
+        ediag "${YLW}WARNING:${NRM} sync target ${DIR} is a mountpoint, but does not appear to be a bind-mount of temporary directory ${TMP}; this may be a bug in ${ASDNAME}"
       else
         debug "Sync target ${DIR} is currently unmounted"
       fi
 
-      if [[ -d "$TMP" ]] && { ! use_overlayfs || mount_is_overlay "$TMP"; }; then
-        debug "Temporary directory ${TMP} is currently present"
-        tmp_is_mounted=1
+      if [[ -d "$TMP" ]]; then
+        if use_overlayfs; then
+          if mount_is_overlay "$TMP"; then
+            debug "Temporary directory ${TMP} is currently mounted"
+            tmp_is_mounted=1
+          elif mountpoint -q "$TMP"; then
+            ediag "${YLW}WARNING:${NRM} temporary directory ${TMP} is a mountpoint, but does not appear to be an overlay filesystem; this may be a bug in ${ASDNAME}"
+          else
+            debug "Temporary directory ${TMP} is currently unmounted"
+          fi
+        else
+          debug "Temporary directory ${TMP} is currently present"
+          tmp_is_mounted=1
+        fi
       else
         debug "Temporary directory ${TMP} is currently absent"
       fi
