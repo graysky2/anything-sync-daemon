@@ -271,7 +271,7 @@ for_each_dir() {
   # command.  We don't need to export them, and it's not a problem if they
   # aren't used in the loop body.
   # shellcheck disable=SC2034
-  for DIR in "${WHATTOSYNC_FINAL[@]}"; do
+  for DIR in "${!WHATTOSYNC_MAP[@]}"; do
     # did user define a real dir
     # this is the hdd bound backup in case of power failure
     if [[ ${DIR##*/} == .* ]]; then
@@ -371,9 +371,18 @@ config_check() {
   local rc=0
 
   # nothing to do if these are empty
-  if ! [[ -v WHATTOSYNC_FINAL ]] || (( "${#WHATTOSYNC_FINAL[@]}" < 1 )); then
+  if ! declare -p WHATTOSYNC_MAP &>/dev/null || (( "${#WHATTOSYNC_MAP[@]}" < 1 )); then
     ediag " ${BLD}Must define at least one directory in ${NRM}${BLU}${ASDCONF}${NRM}"
     rc=1
+  else
+    local whattosync_entry
+    local -i whattosync_entry_count
+    for whattosync_entry in "${!WHATTOSYNC_MAP[@]}"; do
+      whattosync_entry_count="${WHATTOSYNC_MAP["$whattosync_entry"]}"
+      if (( whattosync_entry_count > 1 )); then
+        ediag " ${YLW}WARNING:${NRM} sync target ${BLD}${whattosync_entry}${NRM} specified more than once"
+      fi
+    done
   fi
 
   local sudo_error
@@ -1013,11 +1022,14 @@ setup_late() {
   debug "Backup limit: ${BACKUP_LIMIT_FINAL}"
 
   # removing any trailing slash(es) from the list of directories to sync
-  declare -ga WHATTOSYNC_FINAL=()
+  declare -gA WHATTOSYNC_MAP=()
   if [[ -v WHATTOSYNC ]]; then
     local whattosync_entry
+    local -i whattosync_entry_count
     for whattosync_entry in "${WHATTOSYNC[@]}"; do
-      WHATTOSYNC_FINAL+=("$(clean_path "$whattosync_entry")")
+      whattosync_entry="$(clean_path "$whattosync_entry")"
+      whattosync_entry_count="${WHATTOSYNC_MAP["$whattosync_entry"]:-0}"
+      WHATTOSYNC_MAP["$whattosync_entry"]="$(( whattosync_entry_count + 1 ))"
     done
   fi
 
@@ -1153,7 +1165,7 @@ setup_late() {
     BACKUP_LIMIT_FINAL="$BACKUP_LIMIT_FINAL"  \
     VOLATILE_FINAL="$VOLATILE_FINAL"
 
-  declare -gar WHATTOSYNC_FINAL=("${WHATTOSYNC_FINAL[@]}")
+  declare -r WHATTOSYNC_MAP
 }
 
 main() {
