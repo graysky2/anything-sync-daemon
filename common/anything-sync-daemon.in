@@ -182,31 +182,41 @@ need_sudo() {
 }
 
 find_mount() {
-  findmnt --noheadings --notruncate "$@"
+  verbosely findmnt --noheadings --notruncate "$@"
 }
 
 bind_mount_fsroot() {
   local with_fsroot without_fsroot
 
-  with_fsroot="$(find_mount -o SOURCE -M "${1?}")" || return
-  without_fsroot="$(find_mount --nofsroot -o SOURCE -M "${1?}")" || return
+  with_fsroot="$(ON_START="finding bind mount with filesystem root for ${1?}" find_mount -o SOURCE -M "${1?}")" || return
+  without_fsroot="$(ON_START="finding bind mount without filesystem root for ${1?}" find_mount --nofsroot -o SOURCE -M "${1?}")" || return
 
   # Not a bind mount
-  [[ "$with_fsroot" != "$without_fsroot" ]] || return
+  [[ "$with_fsroot" != "$without_fsroot" ]] || {
+    # shellcheck disable=SC2319
+    local rc="$?"
+    debug "${1?} does not appear to be a bind mount"
+    return "$rc"
+  }
 
   local fsroot="${with_fsroot#"${without_fsroot}["}"
+
+  debug "found filesystem root ${fsroot} for bind mount ${1?}"
+
   printf -- '%s\n' "${fsroot%]}"
 }
 
 mount_is_overlay() {
   local fstype
-  fstype="$(find_mount -o FSTYPE -M "${1?}")" || return
+  fstype="$(ON_START="finding filesystem type for ${1?}" find_mount -o FSTYPE -M "${1?}")" || return
 
   case "$fstype" in
     overlay | overlayfs )
+      debug "${1?} appears to be an overlay filesystem"
       return 0
       ;;
     *)
+      debug "${1?} does not appear to be an overlay filesystem"
       return 1
       ;;
   esac
@@ -220,10 +230,16 @@ mount_options_match() {
   shift
 
   local src_options tgt_options
-  src_options="$(find_mount -o FS-OPTIONS -m "$src")" || return
-  tgt_options="$(find_mount -o FS-OPTIONS -m "$tgt")" || return
+  src_options="$(ON_START="determining filesystem options for source ${src}" find_mount -o FS-OPTIONS -m "$src")" || return
+  tgt_options="$(ON_START="determining filesystem options for target ${tgt}" find_mount -o FS-OPTIONS -m "$tgt")" || return
 
-  [[ "$src_options" == "$tgt_options" ]]
+  if [[ "$src_options" == "$tgt_options" ]]; then
+    diag "mount options for source ${src} match those of target ${tgt}"
+    return 0
+  else
+    diag "mount options for source ${src} do not match those of target ${tgt}"
+    return 1
+  fi
 }
 
 bind_mount_has_expected_source() {
@@ -234,7 +250,13 @@ bind_mount_has_expected_source() {
   shift
 
   local fsroot
-  fsroot="$(bind_mount_fsroot "$tgt")" && [[ "$fsroot" == "$src" ]]
+  if fsroot="$(bind_mount_fsroot "$tgt")" && [[ "$fsroot" == "$src" ]]; then
+    debug "source ${src} appears to be bind-mounted at target ${tgt}"
+    return 0
+  else
+    debug "source ${src} does not appear to be bind-mounted at target ${tgt}"
+    return 1
+  fi
 }
 
 sync_target_is_mounted() {
@@ -250,11 +272,26 @@ sync_target_is_mounted() {
 
   # Don't bother checking whether overlays are mounted if we're not using
   # overlays.
-  use_overlayfs || return
+  if ! use_overlayfs; then
+    debug "not using OverlayFS; assuming target ${tgt} is not mounted"
+    return 1
+  fi
 
-  mount_is_overlay "$tgt" || return
+  mount_is_overlay "$tgt" || {
+    local rc="$?"
+    debug "target ${tgt} is not an overlay filesystem; assuming target ${tgt} is not mounted"
+    return "$rc"
+  }
 
-  ! mount_is_overlay "$src" || mount_options_match "$src" "$tgt"
+  if ! mount_is_overlay "$src"; then
+    debug "source ${src} is not an overlay filesystem; assuming target ${tgt} is mounted"
+    return 0
+  elif mount_options_match "$src" "$tgt"; then
+    return 0
+  else
+    debug "target ${tgt} does not appear to be mounted"
+    return 1
+  fi
 }
 
 # Call a provided command for each entry in `WHATTOSYNC`, setting certain
