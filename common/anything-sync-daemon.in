@@ -185,6 +185,10 @@ find_mount() {
   verbosely findmnt --list --noheadings --notruncate "$@"
 }
 
+find_mount_first_only() {
+  find_mount --first-only "$@"
+}
+
 bind_mount_fsroot() {
   local with_fsroot without_fsroot
 
@@ -208,7 +212,7 @@ bind_mount_fsroot() {
 
 mount_is_overlay() {
   local fstype
-  fstype="$(ON_START="finding filesystem type for ${1?}" find_mount -o FSTYPE -M "${1?}")" || return
+  fstype="$(ON_START="finding filesystem type for ${1?}" find_mount_first_only -o FSTYPE -M "${1?}")" || return
 
   case "$fstype" in
     overlay | overlayfs )
@@ -230,8 +234,8 @@ mount_options_match() {
   shift
 
   local src_options tgt_options
-  src_options="$(ON_START="determining filesystem options for source ${src}" find_mount -o FS-OPTIONS -m "$src")" || return
-  tgt_options="$(ON_START="determining filesystem options for target ${tgt}" find_mount -o FS-OPTIONS -m "$tgt")" || return
+  src_options="$(ON_START="determining filesystem options for source ${src}" find_mount_first_only -o FS-OPTIONS -M "$src")" || return
+  tgt_options="$(ON_START="determining filesystem options for target ${tgt}" find_mount_first_only -o FS-OPTIONS -M "$tgt")" || return
 
   if [[ "$src_options" == "$tgt_options" ]]; then
     diag "mount options for source ${src} match those of target ${tgt}"
