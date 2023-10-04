@@ -189,25 +189,58 @@ find_mount_first_only() {
   find_mount --first-only "$@"
 }
 
-bind_mount_fsroot() {
-  local with_fsroot without_fsroot
+# Bash translation of the Python script from https://unix.stackexchange.com/a/346444
+bind_mounts() {
+  declare -gA BIND_MOUNT_MAP=()
 
-  with_fsroot="$(ON_START="finding bind mount with filesystem root for ${1?}" find_mount -o SOURCE -M "${1?}")" || return
-  without_fsroot="$(ON_START="finding bind mount without filesystem root for ${1?}" find_mount --nofsroot -o SOURCE -M "${1?}")" || return
+  local -A id2majmin
+  local -A id2fsroot
+  local -A id2tgt
+  local -A majmin2count
 
-  # Not a bind mount
-  [[ "$with_fsroot" != "$without_fsroot" ]] || {
-    # shellcheck disable=SC2319
-    local rc="$?"
-    debug "${1?} does not appear to be a bind mount"
-    return "$rc"
-  }
+  local id majmin fsroot tgt count
+  while read -r id majmin fsroot tgt; do
+    id2majmin["$id"]="$majmin"
+    id2fsroot["$id"]="$fsroot"
+    id2tgt["$id"]="$tgt"
+    count="${majmin2count["$majmin"]:-0}"
+    majmin2count["$majmin"]="$(( count + 1 ))"
+  done < <(ON_START='fetching bind mount data' find_mount -o ID,MAJ:MIN,FSROOT,TARGET)
 
-  local fsroot="${with_fsroot#"${without_fsroot}["}"
+  local src_id src src_fsroot
+  for majmin in "${!majmin2count[@]}"; do
+    unset src_id src src_fsroot
 
-  debug "found filesystem root ${fsroot} for bind mount ${1?}"
+    if (( "${majmin2count["$majmin"]}" < 2 )); then
+      continue
+    fi
 
-  printf -- '%s\n' "${fsroot%]}"
+    local src src_fsroot tgt_fsroot
+    while read -d $'\0' -r id; do
+      if [[ -z "${src_id:-}" ]]; then
+        src_id="$id"
+        src="${id2tgt["$src_id"]}"
+        src_fsroot="${id2fsroot["$src_id"]}"
+      else
+        tgt_fsroot="${id2fsroot["$id"]}"
+        if [[ "$src_fsroot" = "$tgt_fsroot" ]]; then
+          BIND_MOUNT_MAP["$id"]="$src"
+        else
+          BIND_MOUNT_MAP["$id"]="$(clean_path "${src}/${tgt_fsroot#"${src_fsroot}"}")"
+        fi
+      fi
+    done < <(
+      # Assume that the shortest mount point for this MAJ:MIN is the "original"
+      # mount.
+      for id in "${!id2majmin[@]}"; do
+        id_majmin="${id2majmin["$id"]}"
+        if [[ "$id_majmin" == "$majmin" ]]; then
+          id_fsroot="${id2fsroot["$id"]}"
+          printf -- '%s %s\0' "${#id_fsroot}" "$id"
+        fi
+      done | sort -z -n -k1,1 | cut -d' ' -f2- -z
+    )
+  done
 }
 
 mount_is_overlay() {
@@ -247,14 +280,20 @@ mount_options_match() {
 }
 
 bind_mount_has_expected_source() {
+  if ! declare -p BIND_MOUNT_MAP &>/dev/null; then
+    bind_mounts || return
+  fi
+
   local src="$1"
   shift
 
   local tgt="$1"
   shift
 
-  local fsroot
-  if fsroot="$(bind_mount_fsroot "$tgt")" && [[ "$fsroot" == "$src" ]]; then
+  local id
+  id="$(ON_START="fetching mount ID for target ${tgt}" find_mount_first_only -o ID -M "$tgt")" || return
+
+  if [[ "${BIND_MOUNT_MAP["$id"]:-}" == "$src" ]]; then
     debug "source ${src} appears to be bind-mounted at target ${tgt}"
     return 0
   else
