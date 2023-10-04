@@ -947,12 +947,14 @@ setup_early() {
     BLD=''
     RED=''
     GRN=''
+    YLW=''
     BLU=''
     NRM=''
   else
     BLD="\e[01m"
     RED="\e[01;31m"
     GRN="\e[01;32m"
+    YLW="\e[01;33m"
     BLU="\e[01;34m"
     NRM="\e[00m"
   fi
