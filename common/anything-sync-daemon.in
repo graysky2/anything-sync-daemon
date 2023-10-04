@@ -182,7 +182,7 @@ need_sudo() {
 }
 
 find_mount() {
-  verbosely findmnt --noheadings --notruncate "$@"
+  verbosely findmnt --list --noheadings --notruncate "$@"
 }
 
 bind_mount_fsroot() {
