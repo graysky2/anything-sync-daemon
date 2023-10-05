@@ -142,16 +142,30 @@
             asd.stop_job('asd-resync.timer')
             asd.stop_job('asd-resync.timer', user='${user}')
 
+            asd.stop_job('asd-resync.service')
+            asd.stop_job('asd-resync.service', user='${user}')
+
             # Simulate a crash by removing the `.flagged` file
             for _ in range(${toString nodes.asd.services.asd.system.backupLimit} + 2):
+              asd.start_job('asd-resync.service')
+              asd.start_job('asd-resync.service', user='${user}')
+
+              # Block until the directories are flagged
+              asd.wait_until_succeeds('${./check.sh} flagged')
+              asd.wait_until_succeeds('sudo -u ${user} ${./check.sh} flagged')
+
               asd.stop_job('asd-resync.service')
               asd.stop_job('asd-resync.service', user='${user}')
 
               asd.wait_until_succeeds('${./check.sh} unflag')
               asd.wait_until_succeeds('sudo -u ${user} ${./check.sh} unflag')
 
-              asd.start_job('asd-resync.service')
-              asd.start_job('asd-resync.service', user='${user}')
+            asd.start_job('asd-resync.service')
+            asd.start_job('asd-resync.service', user='${user}')
+
+            # Block until the directories are flagged
+            asd.wait_until_succeeds('${./check.sh} flagged')
+            asd.wait_until_succeeds('sudo -u ${user} ${./check.sh} flagged')
 
             # Restart `asd.service` to enforce limit on number of backups
             asd.stop_job('asd.service')

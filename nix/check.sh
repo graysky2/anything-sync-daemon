@@ -77,6 +77,11 @@ flag() {
 }
 
 # shellcheck disable=SC2317
+flagged() {
+    [ -e "${v}/.flagged" ]
+}
+
+# shellcheck disable=SC2317
 unflag() {
     unlink "${v}/.flagged"
 }
@@ -130,7 +135,7 @@ fi
 x="${b%/*}/.${b##*/}-backup_asd"
 
 case "$1" in
-    setup|before|after|crash|flag|unflag|umountb|umountv|umountx)
+    setup|before|after|crash|flag|flagged|unflag|umountb|umountv|umountx)
         "$@"
         exit
         ;;
