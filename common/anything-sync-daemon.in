@@ -725,10 +725,18 @@ do_sync() {
           # this copies all the files
           verbosely find "$BACKUP" -type l -printf '%P\n' > "$tempfile"
           verbosely rm -rf "$BACK_OLD"
-          verbosely rsync -aX --no-links --link-dest="$DIR" "$DIR/" "$BACK_OLD/" --info=progress2 || return
+          verbosely rsync -aX --no-links --link-dest="$DIR" "$DIR/" "$BACK_OLD/" --info=progress2 || {
+            local rc="$?"
+            rm -f "$tempfile"
+            return "$rc"
+          }
 
           # this is used to handle the symlinks
-          verbosely rsync -aXl --files-from="$tempfile" "$DIR/" "$BACK_OLD/" --info=progress2 || return
+          verbosely rsync -aXl --files-from="$tempfile" "$DIR/" "$BACK_OLD/" --info=progress2 || {
+            local rc="$?"
+            rm -rf "$tempfile"
+            return "$rc"
+          }
 
           rm "$tempfile"
         fi
