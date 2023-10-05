@@ -25,16 +25,16 @@ verbosely() {
     return 1
   fi
 
-  debug "${ON_START:-"running command '$*'"}"
+  debug "${ON_START:-"running command (${*@Q})"}"
 
   local rc=0
   "$@" || {
     rc="$?"
-    debug "${ON_ERROR:-"command '$*' exited with status '$rc'"}"
+    debug "${ON_ERROR:-"command (${*@Q}) exited with status '${rc}'"}"
     return "$rc"
   }
 
-  debug "${ON_SUCCESS:-"command '$*' succeeded"}"
+  debug "${ON_SUCCESS:-"command (${*@Q}) succeeded"}"
 
   return 0
 }
