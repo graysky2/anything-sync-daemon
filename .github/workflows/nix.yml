@@ -14,7 +14,8 @@ jobs:
         check:
           - treefmt
           - docs
-          - anything-sync-daemon
+          - anything-sync-daemon-system
+          - anything-sync-daemon-user
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
