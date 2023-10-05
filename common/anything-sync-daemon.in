@@ -588,11 +588,11 @@ ungraceful_state_check() {
     NOW="${NOW:-"$(date +%Y%m%d_%H%M%S 2>/dev/null)"}" || :
 
     if [[ "${dir_is_mounted:-}" = 1 ]]; then
-      ON_START="unmounting ${DIR}" verbosely run_mount_helper -d "$DIR" mountdownall || rc="$?"
+      ON_START="unmounting ${DIR}" run_mount_helper -d "$DIR" mountdownall || rc="$?"
     fi
 
     if [[ "${backup_is_mounted:-}" = 1 ]]; then
-      if ON_START="unmounting ${BACKUP}" verbosely run_mount_helper -d "$BACKUP" mountdownall; then
+      if ON_START="unmounting ${BACKUP}" run_mount_helper -d "$BACKUP" mountdownall; then
         rm -rf "$BACKUP"
         debug "removed ${BACKUP} dir"
       else
@@ -601,7 +601,7 @@ ungraceful_state_check() {
     fi
 
     if use_overlayfs && [[ "${tmp_is_mounted:-}" = 1 ]]; then
-      if ON_START="unmounting overlay dirs" verbosely run_mount_helper -v "$OVERLAYFS_VERS" -l "$BACKUP" -u "$UPPER" -w "$WORK" -d "$TMP" mountdown; then
+      if ON_START="unmounting overlay dirs" run_mount_helper -v "$OVERLAYFS_VERS" -l "$BACKUP" -u "$UPPER" -w "$WORK" -d "$TMP" mountdown; then
         rm -rf "$TMP" "$UPPER" "$WORK"
         debug "unmounted overlay dirs"
       else
@@ -719,7 +719,7 @@ do_sync() {
         set +x
       else
         # backup target and link to tmpfs container
-        ON_START="Bind mounting ${DIR} -> ${BACKUP}" verbosely run_mount_helper -s "$DIR" -d "$BACKUP" mountupbind || return
+        ON_START="Bind mounting ${DIR} -> ${BACKUP}" run_mount_helper -s "$DIR" -d "$BACKUP" mountupbind || return
 
         if use_backups;then
           debug "Creating new linked backup directory ${BACK_OLD}"
@@ -740,7 +740,7 @@ do_sync() {
 
         # initial sync
         if use_overlayfs; then
-          ON_START="Mounting overlay directory" verbosely run_mount_helper -v "$OVERLAYFS_VERS" -l "$BACKUP" -u "$UPPER" -w "$WORK" -d "$TMP" mountup || return
+          ON_START="Mounting overlay directory" run_mount_helper -v "$OVERLAYFS_VERS" -l "$BACKUP" -u "$UPPER" -w "$WORK" -d "$TMP" mountup || return
         else
           debug "Doing initial sync with ${BACKUP} and ${TMP}"
           set -x
@@ -748,7 +748,7 @@ do_sync() {
           set +x
         fi
 
-        ON_START="bind mounting ${TMP} -> ${DIR}" verbosely run_mount_helper -s "$TMP" -d "$DIR" mountupbind || return
+        ON_START="bind mounting ${TMP} -> ${DIR}" run_mount_helper -s "$TMP" -d "$DIR" mountupbind || return
 
         touch "${TMP}/.flagged" || return
       fi
@@ -776,16 +776,16 @@ do_unsync() {
     if mountpoint -q "$DIR"; then
       # this assumes that the backup is always
       # updated so be sure to invoke a sync before an unsync
-      ON_START="unmounting ${DIR}" verbosely run_mount_helper -d "$DIR" mountdownallforce || return
+      ON_START="unmounting ${DIR}" run_mount_helper -d "$DIR" mountdownallforce || return
 
-      ON_START="unmounting ${BACKUP}" verbosely run_mount_helper -d "$BACKUP" mountdownallforce || return
+      ON_START="unmounting ${BACKUP}" run_mount_helper -d "$BACKUP" mountdownallforce || return
 
       debug "removing ${BACKUP}"
       rm -rf "$BACKUP"
 
       if use_overlayfs; then
         if mountpoint -q "$TMP"; then
-          ON_START="unmounting $TMP" verbosely run_mount_helper -d "$TMP" mountdownlazy || return
+          ON_START="unmounting $TMP" run_mount_helper -d "$TMP" mountdownlazy || return
 
           debug "removing overlayfs folders"
           rm -rf "$TMP" "$UPPER" "$WORK"
@@ -1247,11 +1247,11 @@ setup_late() {
 
   if need_sudo_to_mount; then
     run_mount_helper() {
-      sudo asd-mount-helper "$@"
+      verbosely sudo asd-mount-helper "$@"
     }
   else
     run_mount_helper() {
-      asd-mount-helper "$@"
+      verbosely asd-mount-helper "$@"
     }
   fi
 
