@@ -943,8 +943,20 @@ setup_early() {
     }
 
     if looks_like_systemd; then
-      ASDCONFDIR="${ASDCONFDIR:-"${CONFIGURATION_DIRECTORY:-/etc/asd}"}"
-      ASDRUNDIR="${ASDRUNDIR:-"${RUNTIME_DIRECTORY:-/run/asd}"}"
+      if [[ -z "${ASDCONFDIR:-}" ]] && [[ -n "${CONFIGURATION_DIRECTORY:-}" ]]; then
+        # systemd permits specifying `ConfigurationDirectory` more than once,
+        # and provides each value colon-separated in the
+        # `CONFIGURATION_DIRECTORY` environment variable.
+        ASDCONFDIR="${CONFIGURATION_DIRECTORY%%:*}"
+      fi
+
+      ASDCONFDIR="${ASDCONFDIR:-/etc/asd}"
+
+      if [[ -z "${ASDRUNDIR:-}" ]] && [[ -n "${RUNTIME_DIRECTORY:-}" ]]; then
+        ASDRUNDIR="${RUNTIME_DIRECTORY%%:*}"
+      fi
+
+      ASDRUNDIR="${ASDRUNDIR:-/run/asd}"
     else
       ASDCONFDIR="${ASDCONFDIR:-/etc/asd}"
       ASDRUNDIR="${ASDRUNDIR:-/run/asd}"
@@ -959,8 +971,17 @@ setup_early() {
     }
 
     if looks_like_systemd; then
-      ASDCONFDIR="${ASDCONFDIR:-"${CONFIGURATION_DIRECTORY:-${XDG_CONFIG_HOME:-${HOME?}/.config}/asd}"}"
-      ASDRUNDIR="${ASDRUNDIR:-"${RUNTIME_DIRECTORY:-${XDG_RUNTIME_DIR:-/run/user/${EUID:-$(id -u)}}/asd}"}"
+      if [[ -z "${ASDCONFDIR:-}" ]] && [[ -n "${CONFIGURATION_DIRECTORY:-}" ]]; then
+        ASDCONFDIR="${CONFIGURATION_DIRECTORY%%:*}"
+      fi
+
+      ASDCONFDIR="${ASDCONFDIR:-"${XDG_CONFIG_HOME:-${HOME?}/.config}/asd"}"
+
+      if [[ -z "${ASDRUNDIR:-}" ]] && [[ -n "${RUNTIME_DIRECTORY}" ]]; then
+        ASDRUNDIR="${RUNTIME_DIRECTORY%%:*}"
+      fi
+
+      ASDRUNDIR="${ASDRUNDIR:-"${XDG_RUNTIME_DIR:-/run/user/${EUID:-$(id -u)}}/asd"}"
     else
       ASDCONFDIR="${ASDCONFDIR:-"${XDG_CONFIG_HOME:-${HOME?}/.config}/asd"}"
       ASDRUNDIR="${ASDRUNDIR:-"${XDG_RUNTIME_DIR:-/run/user/${EUID:-$(id -u)}}/asd"}"
