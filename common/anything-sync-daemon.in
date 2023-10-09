@@ -158,6 +158,14 @@ use_v1_paths() {
   running_as_root && ! is_truthy "${ASDNOV1PATHS:-}"
 }
 
+warn_v1_path() {
+  ediag " ${YLW}WARNING:${NRM} using legacy default ${BLD}${1?}${NRM} path ${BLD}${2?}${NRM}; the default will change in the next major ${BLD}anything-sync-daemon${NRM} release"
+}
+
+warn_v1_path_var() {
+  warn_v1_path "${1?}" "${!1}"
+}
+
 looks_like_tmpfs_or_zram() {
   df -T "${1?}" | grep -q '\( tmpfs \|^/dev/zram\)'
 }
@@ -1035,8 +1043,16 @@ setup_early() {
   umask 027
 
   if use_v1_paths; then
-    ASDCONF="${ASDCONF:-/etc/asd.conf}"
-    DAEMON_FILE="${DAEMON_FILE:-/run/asd}"
+    if [[ -z "${ASDCONF:-}" ]]; then
+      ASDCONF=/etc/asd.conf
+      warn_v1_path_var ASDCONF
+    fi
+
+    local warn_v1_daemon_file=0
+    if [[ -z "${DAEMON_FILE:-}" ]]; then
+      DAEMON_FILE=/run/asd
+      local warn_v1_daemon_file=1
+    fi
 
     if [[ "$ASDCONF" != /etc/asd.conf ]]; then
       suffix="$(realpath "$ASDCONF" | sha256sum | cut -b -16)"
@@ -1046,7 +1062,13 @@ setup_early() {
       fi
     fi
 
+    if [[ "${warn_v1_daemon_file:-0}" = 1 ]]; then
+      warn_v1_path_var DAEMON_FILE
+    fi
+
     LOCKFILE="/run/${ASDNAME}-lock"
+
+    warn_v1_path_var LOCKFILE
   else
     ASDCONF="${ASDCONF:-${ASDCONFDIR}/asd.conf}"
     DAEMON_FILE="${DAEMON_FILE:-${ASDRUNDIR}/asd.run}"
@@ -1155,6 +1177,7 @@ setup_late() {
   if [[ -z "${VOLATILE_FINAL:-}" ]]; then
     if use_v1_paths; then
       VOLATILE_FINAL=/tmp
+      warn_v1_path VOLATILE "$VOLATILE_FINAL"
     else
       VOLATILE_FINAL="$ASDRUNDIR"
     fi
@@ -1181,7 +1204,6 @@ setup_late() {
       return 1
     }
   fi
-
 
   # simple function to determine user intent rather than using a null value
   if is_truthy "${USE_OVERLAYFS:-0}"; then
