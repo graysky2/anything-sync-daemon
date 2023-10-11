@@ -31,17 +31,19 @@ and responsiveness.
 
 # SETUP
 
-`/etc/asd.conf` contains all user-managed settings.  The configuration file
-location can be overridden by specifying a pathname in the `ASDCONF`
-environment variable.  For instance, to load `asd` settings from
+The `asd` configuration file contains all user-managed settings.  See the entry
+on `ASDCONF` in the [`ENVIRONMENT VARIABLES`](#environment-variables) section
+for information on the default `asd` configuration file location.  The
+configuration file location can be overridden by specifying a pathname in the
+`ASDCONF` environment variable.  For instance, to load `asd` settings from
 `/here/for/some/reason/lives/asd.conf`:
 
 ```shell-session
 $ ASDCONF=/here/for/some/reason/lives/asd.conf asd <subcommand>
 ```
 
-**Note** that edits made to `/etc/asd.conf` while `asd` is running will be
-applied only after `asd` has been restarted.
+**Note** that edits made to the `asd` configuration file while `asd` is running
+will be applied only after `asd` has been restarted.
 
 In the `asd` configuration file, you may define the following variables:
 
@@ -56,8 +58,10 @@ In the `asd` configuration file, you may define the following variables:
 
 : A path that lives on a tmpfs or zram mount.  This is where `asd` will store
   the data eventually synchronized back to the physical disk.  By default,
-  `asd` sets `VOLATILE=/tmp`.  **Note** that it is a fatal error to set
-  `VOLATILE` to a path that does not live on a tmpfs or zram mount.
+  when running as `root` and `ASDNOV1PATHS` is unset or set to a false value,
+  `asd` sets `VOLATILE=/tmp`.  Otherwise, `VOLATILE` defaults to `ASDRUNDIR`.
+  **Note** that it is a fatal error to set `VOLATILE` to a path that does not
+  live on a tmpfs or zram mount.
 
 `USE_OVERLAYFS`
 
@@ -79,12 +83,12 @@ In the `asd` configuration file, you may define the following variables:
 
 : A boolean variable controlling whether to issue debugging output.
 
-**Note** that the default value of `/tmp` should work just fine for the
-`VOLATILE` setting.  If using [`bleachbit`][BleachBit], do NOT invoke it with
-the `--clean system.tmp` switch or you will remove a key dot file (`.foo`) from
-`/tmp` that `asd` needs to keep track of sync status.  Also note that using a
-value of `/dev/shm` can cause problems with systemd's `NAMESPACE` spawning only
-when users enable the OverlayFS option.
+**Note** that the default values of `/tmp`/`ASDRUNDIR` should work just fine
+for the `VOLATILE` setting.  If using [`bleachbit`][BleachBit], do NOT invoke
+it with the `--clean system.tmp` switch or you will remove a key dot file
+(`.foo`) from `/tmp` that `asd` needs to keep track of sync status.  Also note
+that using a value of `/dev/shm` can cause problems with systemd's `NAMESPACE`
+spawning only when users enable the OverlayFS option.
 
 Example:
 
@@ -110,33 +114,38 @@ WHATTOSYNC=(
 
 `ASDCONF`
 
-: Path to the `asd` configuration file.  Defaults to `/etc/asd.conf` when
-  `ASDNOV1PATHS` is disabled; otherwise, defaults to `${ASDCONFDIR}/asd.conf`.
+: Path to the `asd` configuration file.  Defaults to `/etc/asd.conf` when `asd`
+  is running as `root` and `ASDNOV1PATHS` is unset or set to a false value;
+  otherwise, defaults to `${ASDCONFDIR}/asd.conf`.
 
 `ASDNOV1PATHS`
 
 : A boolean variable controlling whether to use "version 1" paths or not.  When
   set to a false value, `asd` will use old-style defaults for its daemon file
-  (`/run/asd`), lock file (`/run/asd-lock`), configuration file
-  (`/etc/asd.conf`)  .  **NOTE** that this variable is
-  ignored when `asd` is running as a non-`root` user.  Defaults to disabled
-  (effectively, `ASDNOV1PATHS=0`).
+  (`/run/asd`), lock file (`/run/asd-lock`), and configuration file
+  (`/etc/asd.conf`).  **NOTE** that this variable is ignored when `asd` is
+  running as a non-`root` user.  Defaults to disabled (effectively,
+  `ASDNOV1PATHS=0`).
 
 `ASDCONFDIR`
 
 : Parent directory of `asd.conf` if `ASDCONF` is not defined.  Ignored when
   running as `root` and `ASDNOV1PATHS` is unset or set to a false value.
-  Otherwise, defaults to `CONFIGURATION_DIRECTORY` (which is set when `asd`
-  runs under systemd), falling back to `/etc/asd` when running as `root` and
-  `${XDG_CONFIG_DIR}/asd` when running as a non-`root` user.
+  Otherwise, defaults to the first (leftmost) of the colon-separated paths in
+  the `CONFIGURATION_DIRECTORY` environment variable (which is set when `asd`
+  runs under systemd and the `asd.service` unit defines at least one
+  `ConfigurationDirectory` entry), falling back to `/etc/asd` when running as
+  `root` and `${XDG_CONFIG_DIR}/asd` when running as a non-`root` user.
 
 `ASDRUNDIR`
 
 : Directory where `asd` should store runtime state.  Ignored when running as
   `root` and `ASDNOV1PATHS` is unset or set to a false value.  Otherwise,
-  defaults to `RUNTIME_DIRECTORY` (which is set when `asd` runs under systemd),
-  falling back to `/run/asd` when running as `root` and
-  `${XDG_RUNTIME_DIR}/asd` when running as a non-`root` user.
+  defaults to the first (leftmost) of the colon-separated paths in the
+  `RUNTIME_DIRECTORY` (which is set when `asd` runs under systemd and the
+  `asd.service` unit defines at least one `RuntimeDirectory` entry), falling
+  back to `/run/asd` when running as `root` and `${XDG_RUNTIME_DIR}/asd` when
+  running as a non-`root` user.
 
 `ASDCONFTIMEOUT`
 
@@ -359,6 +368,11 @@ Discover a bug? Please open an issue on the project page linked below.
 
 - Project page: https://github.com/graysky2/anything-sync-daemon
 - Wiki page: https://wiki.archlinux.org/index.php/Anything-sync-daemon
+
+# SEE ALSO
+
+`bash`(1), `cron`(8), `crontab`(1), `crontab`(5), `mount`(5),
+`systemd.exec`(5), `systemd.service`(5), `systemd.timer`(5), `systemd.unit`(5)
 
 # AUTHOR
 
