@@ -1,0 +1,60 @@
+name: NixOS flake checks
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  nix:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        system:
+          - x86_64-linux
+        check:
+          - treefmt
+          - docs
+          - anything-sync-daemon-system
+          - anything-sync-daemon-user
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Install Nix
+        uses: nixbuild/nix-quick-install-action@v25
+        with:
+          # Empty `build-users-group` definition required in order to test this
+          # under `act`, at least when using "medium size" images.
+          nix_conf: |
+            system-features = benchmark big-parallel kvm nixos-test
+            keep-derivations = true
+            keep-outputs = true
+            build-users-group =
+        env:
+          # Don't bother using `gh` to fetch `flake.nix`, as it's (a)
+          # unnecessary and (b) problematic when running under `act` (`gh`
+          # bails out, saying that login is required).
+          # https://github.com/nixbuild/nix-quick-install-action/blob/d96491740839e162d9448daa5446f14dd88a52b2/read-nix-config-from-flake.sh#L17-L29
+          flake_file: "${{ github.workspace }}/flake.nix"
+      - name: Restore and cache Nix store
+        # Don't restore/cache when running locally.
+        # https://github.com/nektos/act#skipping-steps
+        if: "${{ !env.ACT }}"
+        uses: nix-community/cache-nix-action@v4
+        with:
+          key: "cache-${{ matrix.system }}-${{ hashFiles('**/*.nix', 'flake.lock') }}"
+          restore-keys: |
+            cache-${{ matrix.system }}-
+          purge-caches: true
+          purge-created: true
+          purge-key: "cache-${{ matrix.system }}-"
+      # Build the test driver for debugging purposes.  To run the driver, enter
+      # the `act` container (`docker exec act-<...> bash`) and execute
+      # `./driver/bin/nixos-test-driver -I`.
+      - name: Build NixOS test driver
+        # Only build when running locally.
+        # https://github.com/nektos/act#skipping-steps
+        if: "${{ env.ACT }}"
+        # Not all checks have a `driver` attribute; ignore errors.
+        run: "nix build -o driver -L '.#checks.${{ matrix.system }}.${{ matrix.check }}.driver' 2>/dev/null || :"
+      - name: Run flake check
+        run: "nix build -L '.#checks.${{ matrix.system }}.${{ matrix.check }}'"

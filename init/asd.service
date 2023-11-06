@@ -13,5 +13,13 @@ Environment="DEBUG=1"
 ExecStart=/usr/bin/anything-sync-daemon sync
 ExecStop=/usr/bin/anything-sync-daemon unsync
 
+# asd stores files in this directory that need to last beyond the lifetime of
+# this oneshot service.
+# NOTE only enable this if you set `Environment="ASDNOV1PATHS=1"`, as
+# `/run/asd` is the default value of the v1 "daemon file" used for determining
+# whether `asd` is running.
+#RuntimeDirectory=asd
+#RuntimeDirectoryPreserve=yes
+
 [Install]
 WantedBy=multi-user.target
