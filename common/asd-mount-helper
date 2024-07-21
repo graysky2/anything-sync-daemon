@@ -1,0 +1,135 @@
+#!/usr/bin/env bash
+
+# Based upon psd-overlay-helper:
+# https://github.com/graysky2/profile-sync-daemon/blob/bdda0a0deb11b6666477c09fff6bf2675f1830da/common/psd-overlay-helper
+#
+# psd-overlay-helper is copyrighted as follows:
+#
+#   Copyright (c) 2013-2023 graysky
+#
+#   Permission is hereby granted, free of charge, to any person obtaining a
+#   copy of this software and associated documentation files (the "Software"),
+#   to deal in the Software without restriction, including without limitation
+#   the rights to use, copy, modify, merge, publish, distribute, sublicense,
+#   and/or sell copies of the Software, and to permit persons to whom the
+#   Software is furnished to do so, subject to the following conditions:
+#
+#   The above copyright notice and this permission notice shall be included in
+#   all copies or substantial portions of the Software.
+#
+#   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+#   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+#   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+#   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+#   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+#   FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+#   DEALINGS IN THE SOFTWARE.
+#
+# https://github.com/graysky2/profile-sync-daemon/blob/bdda0a0deb11b6666477c09fff6bf2675f1830da/LICENSE
+
+set -euo pipefail
+
+readonly IFS=$' \t\n'
+
+while getopts :v:l:u:w:s:d: OPT; do
+  case $OPT in
+    v)
+      declare -ir OLFSVER="$OPTARG"
+      ;;
+    l)
+      readonly BACKUP="$OPTARG"
+      ;;
+    u)
+      readonly UPPER="$OPTARG"
+      ;;
+    w)
+      readonly WORK="$OPTARG"
+      ;;
+    s)
+      readonly SRC="$OPTARG"
+      ;;
+    d)
+      readonly TMP="$OPTARG"
+      ;;
+    *)
+      echo "Unrecognized argument.  Aborting..." >&2
+      exit 1
+      ;;
+  esac
+done
+
+shift "$(( OPTIND - 1 ))"
+
+OPTIND=1
+
+case "${1:-}" in
+  mountup)
+    # write access to upper/workdir is required or do not overlay lowerdirs
+    user="$(stat -c %U "${TMP?}")" || exit
+    if [[ "$user" != root ]] && ! sudo -u "$user" test -w "${BACKUP?}"; then
+      echo "User ${user} has no write permissions for ${BACKUP}. Aborting..." >&2
+      exit 1
+    fi
+
+    user="$(stat -c %U "${UPPER?}")" || exit
+    if [[ "$user" != root ]] && ! sudo -u "$user" test -w "$BACKUP"; then
+      echo "User ${user} has no write permissions for ${BACKUP}. Aborting..." >&2
+      exit 1
+    fi
+
+    if [[ "${OLFSVER?}" = 23 ]]; then
+      mount -t overlay overlaid -olowerdir="$BACKUP",upperdir="$UPPER",workdir="$WORK" "$TMP" || {
+        rc="$?"
+        echo "Failed to mount overlay.  Aborting..." >&2
+        exit "$rc"
+      }
+    elif [[ "${OLFSVER?}" = 22 ]]; then
+      mount -o nosuid,nodev -t overlayfs overlaid -olowerdir="$BACKUP",upperdir="$UPPER" "$TMP" || {
+        rc="$?"
+        echo "Failed to mount overlay.  Aborting..." >&2
+        exit "$rc"
+      }
+    else
+      echo "Invalid OverlayFS version.  Aborting..." >&2
+      exit 1
+    fi
+    ;;
+  mountupbind)
+    mount --rbind --make-private -o noatime "$SRC" "$TMP"
+    ;;
+  mountdown)
+    umount "$TMP" || {
+        rc="$?"
+        echo "Failed to unmount overlay.  Aborting..." >&2
+        exit "$rc"
+    }
+
+    rm -rf "$WORK"
+    ;;
+  mountdownallforce)
+    umount -R -f -l "$TMP" || {
+        rc="$?"
+        echo "Failed to forcibly recursively unmount.  Aborting..." >&2
+        exit "$rc"
+    }
+    ;;
+  mountdownall)
+    umount -R -l "$TMP" || {
+        rc="$?"
+        echo "Failed to recursively unmount.  Aborting..." >&2
+        exit "$rc"
+    }
+    ;;
+  mountdownlazy)
+    umount -l "$TMP" || {
+        rc="$?"
+        echo "Failed to lazily unmount.  Aborting..." >&2
+        exit "$rc"
+    }
+    ;;
+  *)
+    echo "Do not call this script directly; asd will do so for you. Thank you, come again." >&2
+    ;;
+esac
+
+# vim:set ts=2 sw=2 et:
