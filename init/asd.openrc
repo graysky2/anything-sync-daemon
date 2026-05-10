@@ -1,0 +1,32 @@
+#!/sbin/openrc-run
+
+# Anything-sync-daemon OpenRC service
+# This service uses the daemon's own sync/unsync commands and tracks
+# the active state by the daemon lock file.
+
+description="Anything-sync-daemon"
+
+depend() {
+    need localmount
+    before shutdown
+}
+
+start() {
+    ebegin "Starting Anything-sync-daemon"
+    /usr/bin/anything-sync-daemon sync
+    eend $?
+}
+
+stop() {
+    ebegin "Stopping Anything-sync-daemon"
+    /usr/bin/anything-sync-daemon unsync
+    eend $?
+}
+
+status() {
+    if [ -f /run/asd ]; then
+        eend 0
+    else
+        eend 1
+    fi
+}

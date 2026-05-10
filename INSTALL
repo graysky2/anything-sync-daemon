@@ -1,12 +1,13 @@
 DEPENDENCIES
  bash >=4.0
- cron (only if using upstart)
+ cron (only if using upstart or OpenRC)
  find
  rsync
 
  a supported init system
  -systemd
  -upstart
+ -OpenRC
 
 WARNING
 To avoid data loss, it is HIGHLY recommended that users stop any running
@@ -24,11 +25,17 @@ BUILDING
 
   # make install-systemd-all
   # make install-upstart-all
+  # make install-openrc-all
 
  As of v3.13, the Makefiles for systemd-native distros such as Arch, Exherbo,
  and Fedora, no longer install the deprecated cron script using a systemd
  timer instead. Users may override and install the deprecated cron script by
- running make with `install-with-cron` instead  of `install` at this point.
+ running make with `install-with-cron` instead of `install` at this point.
+
+ For OpenRC-based systems, use the supplied OpenRC init script and the
+ hourly cronjob for periodic resyncs, since timer-driven alternatives are
+ not available by default. WARNING: you may have to move the cron script 
+ to a different location depending on which cron service you are using 
 
 USE A DISTRO PROVIDED PACKAGE
  ARCH LINUX

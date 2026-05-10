@@ -7,5 +7,8 @@ Consult the man page or the wiki page: https://wiki.archlinux.org/index.php/Anyt
 ## Installation from Source
 To build from source, see the included INSTALL text document.
 
+For OpenRC-based systems, use `make install-openrc-all` to install the OpenRC
+service script and the hourly cron job for periodic resync.
+
 ## Installation from Distro Packages
 * ![logo](http://www.monitorix.org/imgs/archlinux.png "arch logo")Arch: in the [AUR](https://aur.archlinux.org/packages/anything-sync-daemon).

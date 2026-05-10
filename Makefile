@@ -6,6 +6,7 @@ CONFDIR = /etc
 CRONDIR = /etc/cron.hourly
 INITDIR_SYSTEMD = /usr/lib/systemd/system
 INITDIR_UPSTART = /etc/init.d
+INITDIR_OPENRC = /etc/init.d
 BINDIR = $(PREFIX)/bin
 DOCDIR = $(PREFIX)/share/doc/$(PN)
 MANDIR = $(PREFIX)/share/man/man1
@@ -82,15 +83,23 @@ install-upstart:
 	$(INSTALL_DIR) "$(DESTDIR)$(INITDIR_UPSTART)"
 	$(INSTALL_SCRIPT) init/asd.upstart "$(DESTDIR)$(INITDIR_UPSTART)/asd"
 
+install-openrc:
+	$(Q)echo -e '\033[1;32mInstalling OpenRC files...\033[0m'
+	$(INSTALL_DIR) "$(DESTDIR)$(CONFDIR)"
+	$(INSTALL_DIR) "$(DESTDIR)$(INITDIR_OPENRC)"
+	$(INSTALL_SCRIPT) init/asd.openrc "$(DESTDIR)$(INITDIR_OPENRC)/asd"
 
 install-systemd-all: install-bin install-man install-systemd
 
 install-upstart-all: install-bin install-man install-cron install-upstart
 
+install-openrc-all: install-bin install-man install-cron install-openrc
+
 install:
 	$(Q)echo "run one of the following:"
 	$(Q)echo "  make install-systemd-all (systemd based systems)"
 	$(Q)echo "  make install-upstart-all (upstart based systems)"
+	$(Q)echo "  make install-openrc-all (OpenRC based systems)"
 	$(Q)echo
 	$(Q)echo "or check out the Makefile for specific rules"
 
@@ -119,18 +128,23 @@ uninstall-upstart:
 	$(RM) "$(DESTDIR)$(CONFDIR)/asd.conf"
 	$(RM) "$(DESTDIR)$(INITDIR_UPSTART)/asd"
 
+uninstall-openrc:
+	$(RM) "$(DESTDIR)$(INITDIR_OPENRC)/asd"
+
 uninstall-systemd-all: uninstall-bin uninstall-man uninstall-systemd
 
 uninstall-upstart-all: uninstall-bin uninstall-man uninstall-cron uninstall-upstart
+uninstall-openrc-all: uninstall-bin uninstall-man uninstall-cron uninstall-openrc
 
 uninstall:
 	$(Q)echo "run one of the following:"
 	$(Q)echo "  make uninstall-systemd-all (systemd based systems)"
 	$(Q)echo "  make uninstall-upstart-all (upstart based systems)"
+	$(Q)echo "  make uninstall-openrc-all (OpenRC based systems)"
 	$(Q)echo
 	$(Q)echo "or check out the Makefile for specific rules"
 
 clean:
 	$(RM) -f common/$(PN)
 
-.PHONY: help install-bin install-man install-cron install-systemd install-upstart install-systemd-all install-upstart-all install uninstall-bin uninstall-man uninstall-cron uninstall-systemd uninstall-upstart uninstall-systemd-all uninstall clean
+.PHONY: help install-bin install-man install-cron install-systemd install-upstart install-openrc install-systemd-all install-upstart-all install-openrc-all install uninstall-bin uninstall-man uninstall-cron uninstall-systemd uninstall-upstart uninstall-openrc uninstall-systemd-all uninstall-upstart-all uninstall-openrc-all uninstall clean

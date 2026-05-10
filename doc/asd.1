@@ -123,9 +123,21 @@ stop
 enable
 disable
 .SS  START AND STOP ASD FOR USERS OF OTHER INIT SYSTEMS
-For distros not using systemd, another init script should be used to manage the daemon. Examples are provided and are known to work with Upstart.
+For distros not using systemd, another init script should be used to manage the daemon. Examples are provided and are known to work with Upstart and OpenRC.
 .PP
-Note that for these init systems, the supplied cron script (installed to /etc/cron.hourly) will run the resync option to keep the tmpfs copies sync'ed. Of course, the target system must have cron installed and active for this to happen.
+On OpenRC systems, install the OpenRC init script and use the hourly cron script
+installed to /etc/cron.hourly to perform periodic resyncs. The target system must
+have cron installed and active for this to happen. WARNING: you may have to put the cron.hourly script 
+in a different location or change your crontab configuration depending on the implementation of cron you are using
+For instance BusyBox crond has their periodic hourly scripts loaded to /etc/periodic/hourly
+.PP
+Example OpenRC commands:
+.nf
+ # rc-service asd start
+ # rc-service asd stop
+ # rc-service asd status
+ # rc-update add asd default
+.fi
 .SH SUPPORTED DISTROS
 At this time, the following distros are officially supported but there is no reason to think that asd will not run on another distro:
 .IP \(bu 3
